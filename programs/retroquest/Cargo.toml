@@ -1,0 +1,19 @@
+[package]
+name = "retroquest"
+version = "0.1.0"
+description = "Solana-native retrospective application"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "retroquest"
+
+[features]
+no-entrypoint = []
+no-idl = []
+no-log-ix-name = []
+cpi = ["no-entrypoint"]
+default = []
+
+[dependencies]
+anchor-lang = "0.30.1"
