@@ -1,0 +1,27 @@
+# Dependencies
+node_modules/
+
+# Anchor build artifacts
+target/
+.anchor/
+
+# Solana test validator
+test-ledger/
+
+# IDL (generated, can be regenerated)
+# Uncomment if you prefer to regenerate IDL on build
+# target/idl/
+# target/types/
+
+# OS files
+.DS_Store
+
+# Editor
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Environment
+.env
+.env.local
