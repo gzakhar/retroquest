@@ -1,25 +1,24 @@
 import React from "react";
 import { PublicKey } from "@solana/web3.js";
 import {
-  RetroSession,
+  RetroBoard,
   NoteWithAddress,
   GroupWithAddress,
-  ParticipantEntry,
+  BoardMembership,
 } from "../../types";
-// GroupCard not used in this component - inline rendering instead
 
 interface Props {
-  session: RetroSession;
+  board: RetroBoard;
   notes: NoteWithAddress[];
   groups: GroupWithAddress[];
-  participantEntry: ParticipantEntry | null;
-  sessionAddress: PublicKey;
+  membership: BoardMembership | null;
+  boardAddress: PublicKey;
   refresh: () => Promise<void>;
   isOnAllowlist: boolean;
 }
 
 export const DiscussStage: React.FC<Props> = ({
-  session,
+  board,
   notes,
   groups,
 }) => {
@@ -49,11 +48,11 @@ export const DiscussStage: React.FC<Props> = ({
     <div className="space-y-6">
       <div>
         <h2 className="text-xl font-semibold mb-2">
-          {session.closed ? "Session Results" : "Discussion"}
+          {board.closed ? "Board Results" : "Discussion"}
         </h2>
         <p className="text-gray-400">
-          {session.closed
-            ? "This session has been closed. Here are the final results."
+          {board.closed
+            ? "This board has been closed. Here are the final results."
             : "Review the voting results and discuss the most important topics."}
         </p>
       </div>
@@ -131,7 +130,7 @@ export const DiscussStage: React.FC<Props> = ({
                           className="bg-gray-800/50 rounded px-3 py-2 text-sm"
                         >
                           <span className="text-gray-400 mr-2">
-                            [{session.categories[note.data.categoryId]}]
+                            [{board.categories[note.data.categoryId]}]
                           </span>
                           {note.data.content}
                         </div>
@@ -158,7 +157,7 @@ export const DiscussStage: React.FC<Props> = ({
                 className="bg-gray-800/50 rounded px-3 py-2 text-sm"
               >
                 <span className="text-gray-400 mr-2">
-                  [{session.categories[note.data.categoryId]}]
+                  [{board.categories[note.data.categoryId]}]
                 </span>
                 {note.data.content}
               </div>
@@ -167,11 +166,11 @@ export const DiscussStage: React.FC<Props> = ({
         </div>
       )}
 
-      {/* Session info */}
+      {/* Board info */}
       <div className="border-t border-gray-700 pt-6 text-sm text-gray-500">
-        <p>Session #{session.sessionIndex.toString()}</p>
-        <p>{session.allowlist.length} participants</p>
-        <p>{session.votingCreditsPerParticipant} credits per participant</p>
+        <p>Board #{board.boardIndex.toString()}</p>
+        <p>{board.allowlist.length} participants</p>
+        <p>{board.votingCreditsPerParticipant} credits per participant</p>
       </div>
     </div>
   );

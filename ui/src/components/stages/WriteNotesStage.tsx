@@ -7,28 +7,28 @@ import {
   findNotePda,
 } from "../../utils/instructions";
 import {
-  RetroSession,
+  RetroBoard,
   NoteWithAddress,
   GroupWithAddress,
-  ParticipantEntry,
+  BoardMembership,
   PROGRAM_ID,
 } from "../../types";
 import { NoteCard } from "../NoteCard";
 
 interface Props {
-  session: RetroSession;
+  board: RetroBoard;
   notes: NoteWithAddress[];
   groups: GroupWithAddress[];
-  participantEntry: ParticipantEntry | null;
-  sessionAddress: PublicKey;
+  membership: BoardMembership | null;
+  boardAddress: PublicKey;
   refresh: () => Promise<void>;
   isOnAllowlist: boolean;
 }
 
 export const WriteNotesStage: React.FC<Props> = ({
-  session,
+  board,
   notes,
-  sessionAddress,
+  boardAddress,
   refresh,
   isOnAllowlist,
 }) => {
@@ -43,9 +43,9 @@ export const WriteNotesStage: React.FC<Props> = ({
 
     try {
       setSubmitting(true);
-      const [notePda] = findNotePda(sessionAddress, session.noteCount, PROGRAM_ID);
+      const [notePda] = findNotePda(boardAddress, board.noteCount, PROGRAM_ID);
       const instruction = createCreateNoteInstruction(
-        sessionAddress,
+        boardAddress,
         notePda,
         publicKey,
         selectedCategory,
@@ -63,7 +63,7 @@ export const WriteNotesStage: React.FC<Props> = ({
   };
 
   // Group notes by category
-  const notesByCategory = session.categories.map((category, index) => ({
+  const notesByCategory = board.categories.map((category, index) => ({
     category,
     categoryId: index,
     notes: notes.filter((n) => n.data.categoryId === index),
@@ -83,7 +83,7 @@ export const WriteNotesStage: React.FC<Props> = ({
       {isOnAllowlist && (
         <div className="bg-gray-700/50 rounded-lg p-4">
           <div className="flex flex-wrap gap-2 mb-4">
-            {session.categories.map((category, index) => (
+            {board.categories.map((category, index) => (
               <button
                 key={index}
                 onClick={() => setSelectedCategory(index)}

@@ -1,16 +1,16 @@
 import React from "react";
-import { GroupWithAddress, RetroSession } from "../types";
+import { GroupWithAddress, RetroBoard } from "../types";
 
 interface Props {
   group: GroupWithAddress;
-  session: RetroSession;
+  board: RetroBoard;
   onUnassignNote?: (noteId: bigint) => void;
   compact?: boolean;
 }
 
 export const GroupCard: React.FC<Props> = ({
   group,
-  session,
+  board,
   onUnassignNote,
   compact = false,
 }) => {
@@ -45,7 +45,7 @@ export const GroupCard: React.FC<Props> = ({
             >
               <div>
                 <span className="text-gray-400 mr-2">
-                  [{session.categories[note.data.categoryId]}]
+                  [{board.categories[note.data.categoryId]}]
                 </span>
                 <span className="text-gray-200">{note.data.content}</span>
               </div>

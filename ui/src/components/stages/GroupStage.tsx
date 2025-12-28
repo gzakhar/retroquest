@@ -10,30 +10,30 @@ import {
   findNotePda,
 } from "../../utils/instructions";
 import {
-  RetroSession,
+  RetroBoard,
   NoteWithAddress,
   GroupWithAddress,
-  ParticipantEntry,
+  BoardMembership,
   PROGRAM_ID,
 } from "../../types";
 import { NoteCard } from "../NoteCard";
 import { GroupCard } from "../GroupCard";
 
 interface Props {
-  session: RetroSession;
+  board: RetroBoard;
   notes: NoteWithAddress[];
   groups: GroupWithAddress[];
-  participantEntry: ParticipantEntry | null;
-  sessionAddress: PublicKey;
+  membership: BoardMembership | null;
+  boardAddress: PublicKey;
   refresh: () => Promise<void>;
   isOnAllowlist: boolean;
 }
 
 export const GroupStage: React.FC<Props> = ({
-  session,
+  board,
   notes,
   groups,
-  sessionAddress,
+  boardAddress,
   refresh,
   isOnAllowlist,
 }) => {
@@ -48,9 +48,9 @@ export const GroupStage: React.FC<Props> = ({
 
     try {
       setCreating(true);
-      const [groupPda] = findGroupPda(sessionAddress, session.groupCount, PROGRAM_ID);
+      const [groupPda] = findGroupPda(boardAddress, board.groupCount, PROGRAM_ID);
       const instruction = createCreateGroupInstruction(
-        sessionAddress,
+        boardAddress,
         groupPda,
         publicKey,
         newGroupTitle.trim(),
@@ -70,10 +70,10 @@ export const GroupStage: React.FC<Props> = ({
     if (!publicKey || !isOnAllowlist) return;
 
     try {
-      const [notePda] = findNotePda(sessionAddress, noteId, PROGRAM_ID);
-      const [groupPda] = findGroupPda(sessionAddress, groupId, PROGRAM_ID);
+      const [notePda] = findNotePda(boardAddress, noteId, PROGRAM_ID);
+      const [groupPda] = findGroupPda(boardAddress, groupId, PROGRAM_ID);
       const instruction = createAssignNoteToGroupInstruction(
-        sessionAddress,
+        boardAddress,
         notePda,
         groupPda,
         publicKey,
@@ -93,9 +93,9 @@ export const GroupStage: React.FC<Props> = ({
     if (!publicKey || !isOnAllowlist) return;
 
     try {
-      const [notePda] = findNotePda(sessionAddress, noteId, PROGRAM_ID);
+      const [notePda] = findNotePda(boardAddress, noteId, PROGRAM_ID);
       const instruction = createUnassignNoteInstruction(
-        sessionAddress,
+        boardAddress,
         notePda,
         publicKey,
         noteId,
@@ -177,7 +177,7 @@ export const GroupStage: React.FC<Props> = ({
                 >
                   <NoteCard
                     note={note}
-                    categoryName={session.categories[note.data.categoryId]}
+                    categoryName={board.categories[note.data.categoryId]}
                   />
                 </div>
               ))
@@ -209,7 +209,7 @@ export const GroupStage: React.FC<Props> = ({
                 >
                   <GroupCard
                     group={group}
-                    session={session}
+                    board={board}
                     onUnassignNote={isOnAllowlist ? handleUnassignNote : undefined}
                   />
                 </div>

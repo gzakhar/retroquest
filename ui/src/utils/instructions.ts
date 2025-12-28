@@ -6,19 +6,19 @@ import {
 import { Buffer } from "buffer";
 import * as borsh from "borsh";
 import {
-  findTeamRegistryPda,
-  findSessionPda,
+  findFacilitatorRegistryPda,
+  findBoardPda,
   findNotePda,
   findGroupPda,
-  findParticipantEntryPda,
+  findBoardMembershipPda,
   findVoteRecordPda,
 } from "./pda";
 
 // Instruction discriminators (must match instructions.rs)
-const INIT_TEAM_REGISTRY = 0;
-const CREATE_SESSION = 1;
+const INIT_FACILITATOR_REGISTRY = 0;
+const CREATE_BOARD = 1;
 const ADVANCE_STAGE = 2;
-const CLOSE_SESSION = 3;
+const CLOSE_BOARD = 3;
 const CREATE_NOTE = 4;
 const CREATE_GROUP = 5;
 const SET_GROUP_TITLE = 6;
@@ -27,7 +27,7 @@ const UNASSIGN_NOTE = 8;
 const CAST_VOTE = 9;
 
 // Borsh schema definitions
-const createSessionSchema = {
+const createBoardSchema = {
   struct: {
     categories: { array: { type: "string" } },
     allowlist: { array: { type: { array: { type: "u8", len: 32 } } } },
@@ -88,31 +88,31 @@ function serializeInstruction(discriminator: number, payload?: Buffer): Buffer {
   return Buffer.from([discriminator]);
 }
 
-export function createInitTeamRegistryInstruction(
-  teamAuthority: PublicKey,
+export function createInitFacilitatorRegistryInstruction(
+  facilitator: PublicKey,
   programId: PublicKey
 ): TransactionInstruction {
-  const [teamRegistry] = findTeamRegistryPda(teamAuthority, programId);
+  const [facilitatorRegistry] = findFacilitatorRegistryPda(facilitator, programId);
 
   return new TransactionInstruction({
     keys: [
-      { pubkey: teamRegistry, isSigner: false, isWritable: true },
-      { pubkey: teamAuthority, isSigner: true, isWritable: true },
+      { pubkey: facilitatorRegistry, isSigner: false, isWritable: true },
+      { pubkey: facilitator, isSigner: true, isWritable: true },
       { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
     ],
     programId,
-    data: serializeInstruction(INIT_TEAM_REGISTRY),
+    data: serializeInstruction(INIT_FACILITATOR_REGISTRY),
   });
 }
 
-export function createCreateSessionInstruction(
-  teamRegistry: PublicKey,
-  session: PublicKey,
-  teamAuthority: PublicKey,
+export function createCreateBoardInstruction(
+  facilitatorRegistry: PublicKey,
+  board: PublicKey,
+  facilitator: PublicKey,
   categories: string[],
   allowlist: PublicKey[],
   votingCreditsPerParticipant: number | null,
-  participantEntries: PublicKey[],
+  membershipAccounts: PublicKey[],
   programId: PublicKey
 ): TransactionInstruction {
   const payload = {
@@ -121,28 +121,28 @@ export function createCreateSessionInstruction(
     voting_credits_per_participant: votingCreditsPerParticipant,
   };
 
-  const serialized = borsh.serialize(createSessionSchema as any, payload);
+  const serialized = borsh.serialize(createBoardSchema as any, payload);
 
   return new TransactionInstruction({
     keys: [
-      { pubkey: teamRegistry, isSigner: false, isWritable: true },
-      { pubkey: session, isSigner: false, isWritable: true },
-      { pubkey: teamAuthority, isSigner: true, isWritable: true },
+      { pubkey: facilitatorRegistry, isSigner: false, isWritable: true },
+      { pubkey: board, isSigner: false, isWritable: true },
+      { pubkey: facilitator, isSigner: true, isWritable: true },
       { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
-      // ParticipantEntry accounts for each allowlist member (enables session discovery)
-      ...participantEntries.map((pe) => ({
-        pubkey: pe,
+      // BoardMembership accounts for each allowlist member (enables board discovery)
+      ...membershipAccounts.map((ma) => ({
+        pubkey: ma,
         isSigner: false,
         isWritable: true,
       })),
     ],
     programId,
-    data: serializeInstruction(CREATE_SESSION, Buffer.from(serialized)),
+    data: serializeInstruction(CREATE_BOARD, Buffer.from(serialized)),
   });
 }
 
 export function createAdvanceStageInstruction(
-  session: PublicKey,
+  board: PublicKey,
   facilitator: PublicKey,
   newStage: number,
   programId: PublicKey
@@ -152,7 +152,7 @@ export function createAdvanceStageInstruction(
 
   return new TransactionInstruction({
     keys: [
-      { pubkey: session, isSigner: false, isWritable: true },
+      { pubkey: board, isSigner: false, isWritable: true },
       { pubkey: facilitator, isSigner: true, isWritable: false },
     ],
     programId,
@@ -160,23 +160,23 @@ export function createAdvanceStageInstruction(
   });
 }
 
-export function createCloseSessionInstruction(
-  session: PublicKey,
+export function createCloseBoardInstruction(
+  board: PublicKey,
   facilitator: PublicKey,
   programId: PublicKey
 ): TransactionInstruction {
   return new TransactionInstruction({
     keys: [
-      { pubkey: session, isSigner: false, isWritable: true },
+      { pubkey: board, isSigner: false, isWritable: true },
       { pubkey: facilitator, isSigner: true, isWritable: false },
     ],
     programId,
-    data: serializeInstruction(CLOSE_SESSION),
+    data: serializeInstruction(CLOSE_BOARD),
   });
 }
 
 export function createCreateNoteInstruction(
-  session: PublicKey,
+  board: PublicKey,
   note: PublicKey,
   author: PublicKey,
   categoryId: number,
@@ -188,7 +188,7 @@ export function createCreateNoteInstruction(
 
   return new TransactionInstruction({
     keys: [
-      { pubkey: session, isSigner: false, isWritable: true },
+      { pubkey: board, isSigner: false, isWritable: true },
       { pubkey: note, isSigner: false, isWritable: true },
       { pubkey: author, isSigner: true, isWritable: true },
       { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
@@ -199,7 +199,7 @@ export function createCreateNoteInstruction(
 }
 
 export function createCreateGroupInstruction(
-  session: PublicKey,
+  board: PublicKey,
   group: PublicKey,
   creator: PublicKey,
   title: string,
@@ -210,7 +210,7 @@ export function createCreateGroupInstruction(
 
   return new TransactionInstruction({
     keys: [
-      { pubkey: session, isSigner: false, isWritable: true },
+      { pubkey: board, isSigner: false, isWritable: true },
       { pubkey: group, isSigner: false, isWritable: true },
       { pubkey: creator, isSigner: true, isWritable: true },
       { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
@@ -221,7 +221,7 @@ export function createCreateGroupInstruction(
 }
 
 export function createSetGroupTitleInstruction(
-  session: PublicKey,
+  board: PublicKey,
   group: PublicKey,
   participant: PublicKey,
   groupId: bigint,
@@ -233,7 +233,7 @@ export function createSetGroupTitleInstruction(
 
   return new TransactionInstruction({
     keys: [
-      { pubkey: session, isSigner: false, isWritable: false },
+      { pubkey: board, isSigner: false, isWritable: false },
       { pubkey: group, isSigner: false, isWritable: true },
       { pubkey: participant, isSigner: true, isWritable: false },
     ],
@@ -243,7 +243,7 @@ export function createSetGroupTitleInstruction(
 }
 
 export function createAssignNoteToGroupInstruction(
-  session: PublicKey,
+  board: PublicKey,
   note: PublicKey,
   group: PublicKey,
   participant: PublicKey,
@@ -256,7 +256,7 @@ export function createAssignNoteToGroupInstruction(
 
   return new TransactionInstruction({
     keys: [
-      { pubkey: session, isSigner: false, isWritable: false },
+      { pubkey: board, isSigner: false, isWritable: false },
       { pubkey: note, isSigner: false, isWritable: true },
       { pubkey: group, isSigner: false, isWritable: false },
       { pubkey: participant, isSigner: true, isWritable: false },
@@ -267,7 +267,7 @@ export function createAssignNoteToGroupInstruction(
 }
 
 export function createUnassignNoteInstruction(
-  session: PublicKey,
+  board: PublicKey,
   note: PublicKey,
   participant: PublicKey,
   noteId: bigint,
@@ -278,7 +278,7 @@ export function createUnassignNoteInstruction(
 
   return new TransactionInstruction({
     keys: [
-      { pubkey: session, isSigner: false, isWritable: false },
+      { pubkey: board, isSigner: false, isWritable: false },
       { pubkey: note, isSigner: false, isWritable: true },
       { pubkey: participant, isSigner: true, isWritable: false },
     ],
@@ -288,8 +288,8 @@ export function createUnassignNoteInstruction(
 }
 
 export function createCastVoteInstruction(
-  session: PublicKey,
-  participantEntry: PublicKey,
+  board: PublicKey,
+  boardMembership: PublicKey,
   group: PublicKey,
   voteRecord: PublicKey,
   voter: PublicKey,
@@ -302,8 +302,8 @@ export function createCastVoteInstruction(
 
   return new TransactionInstruction({
     keys: [
-      { pubkey: session, isSigner: false, isWritable: false },
-      { pubkey: participantEntry, isSigner: false, isWritable: true },
+      { pubkey: board, isSigner: false, isWritable: false },
+      { pubkey: boardMembership, isSigner: false, isWritable: true },
       { pubkey: group, isSigner: false, isWritable: true },
       { pubkey: voteRecord, isSigner: false, isWritable: true },
       { pubkey: voter, isSigner: true, isWritable: true },
@@ -316,10 +316,10 @@ export function createCastVoteInstruction(
 
 // Re-export PDA helpers for convenience
 export {
-  findTeamRegistryPda,
-  findSessionPda,
+  findFacilitatorRegistryPda,
+  findBoardPda,
   findNotePda,
   findGroupPda,
-  findParticipantEntryPda,
+  findBoardMembershipPda,
   findVoteRecordPda,
 };

@@ -5,16 +5,15 @@ import { PublicKey } from "@solana/web3.js";
 import { Buffer } from "buffer";
 import { useProgram } from "../hooks/useProgram";
 import {
-  createInitTeamRegistryInstruction,
-  createCreateSessionInstruction,
-  findTeamRegistryPda,
-  findSessionPda,
-  findParticipantEntryPda,
+  createInitFacilitatorRegistryInstruction,
+  createCreateBoardInstruction,
+  findFacilitatorRegistryPda,
+  findBoardPda,
+  findBoardMembershipPda,
 } from "../utils/instructions";
-import { deserializeTeamRegistry } from "../utils/deserialize";
-// Using programId from useProgram hook
+import { deserializeFacilitatorRegistry } from "../utils/deserialize";
 
-export const CreateSession: React.FC = () => {
+export const CreateBoard: React.FC = () => {
   const navigate = useNavigate();
   const { connected, publicKey } = useWallet();
   const { sendInstructions, getAccountInfo, programId } = useProgram();
@@ -71,53 +70,53 @@ export const CreateSession: React.FC = () => {
 
       const instructions = [];
 
-      // Check if team registry exists
-      const [teamRegistryPda] = findTeamRegistryPda(publicKey, programId);
-      const teamRegistryAccount = await getAccountInfo(teamRegistryPda);
+      // Check if facilitator registry exists
+      const [facilitatorRegistryPda] = findFacilitatorRegistryPda(publicKey, programId);
+      const facilitatorRegistryAccount = await getAccountInfo(facilitatorRegistryPda);
 
-      let sessionIndex = 0n;
+      let boardIndex = 0n;
 
-      if (!teamRegistryAccount) {
-        // Create team registry first
+      if (!facilitatorRegistryAccount) {
+        // Create facilitator registry first
         instructions.push(
-          createInitTeamRegistryInstruction(publicKey, programId)
+          createInitFacilitatorRegistryInstruction(publicKey, programId)
         );
       } else {
-        const teamRegistry = deserializeTeamRegistry(
-          Buffer.from(teamRegistryAccount.data)
+        const facilitatorRegistry = deserializeFacilitatorRegistry(
+          Buffer.from(facilitatorRegistryAccount.data)
         );
-        sessionIndex = teamRegistry.sessionCount;
+        boardIndex = facilitatorRegistry.boardCount;
       }
 
-      // Create session
-      const [sessionPda] = findSessionPda(publicKey, sessionIndex, programId);
+      // Create board
+      const [boardPda] = findBoardPda(publicKey, boardIndex, programId);
       const allowlistPubkeys = allowlist.map((a) => new PublicKey(a));
 
-      // Compute ParticipantEntry PDAs for each participant (enables session discovery)
-      const participantEntryPdas = allowlistPubkeys.map((participant) => {
-        const [pda] = findParticipantEntryPda(sessionPda, participant, programId);
+      // Compute BoardMembership PDAs for each participant (enables board discovery)
+      const membershipPdas = allowlistPubkeys.map((participant) => {
+        const [pda] = findBoardMembershipPda(boardPda, participant, programId);
         return pda;
       });
 
       instructions.push(
-        createCreateSessionInstruction(
-          teamRegistryPda,
-          sessionPda,
+        createCreateBoardInstruction(
+          facilitatorRegistryPda,
+          boardPda,
           publicKey,
           categories,
           allowlistPubkeys,
           votingCredits,
-          participantEntryPdas,
+          membershipPdas,
           programId
         )
       );
 
       await sendInstructions(instructions);
 
-      // Navigate to the new session
-      navigate(`/session/${sessionPda.toString()}`);
+      // Navigate to the new board
+      navigate(`/board/${boardPda.toString()}`);
     } catch (err) {
-      console.error("Error creating session:", err);
+      console.error("Error creating board:", err);
       const errorMessage = err instanceof Error ? err.message : "Unknown error";
       if (errorMessage.includes("not connected")) {
         setError("Wallet disconnected. Please click the wallet button to reconnect.");
@@ -133,7 +132,7 @@ export const CreateSession: React.FC = () => {
     return (
       <div className="text-center py-16">
         <p className="text-gray-400">
-          Connect your wallet to create a session
+          Connect your wallet to create a board
         </p>
       </div>
     );
@@ -141,7 +140,7 @@ export const CreateSession: React.FC = () => {
 
   return (
     <div className="max-w-2xl mx-auto">
-      <h1 className="text-2xl font-bold mb-8">Create New Session</h1>
+      <h1 className="text-2xl font-bold mb-8">Create New Board</h1>
 
       <form onSubmit={handleSubmit} className="space-y-8">
         {/* Categories */}
@@ -282,7 +281,7 @@ export const CreateSession: React.FC = () => {
               Creating...
             </span>
           ) : (
-            "Create Session"
+            "Create Board"
           )}
         </button>
       </form>

@@ -6,11 +6,8 @@ pub enum RetroError {
     #[error("Only the facilitator can perform this action")]
     UnauthorizedFacilitator,
 
-    #[error("Only the team authority can perform this action")]
-    UnauthorizedTeamAuthority,
-
-    #[error("Session is closed and cannot be modified")]
-    SessionClosed,
+    #[error("Board is closed and cannot be modified")]
+    BoardClosed,
 
     #[error("Invalid stage for this operation")]
     InvalidStage,

@@ -1,13 +1,13 @@
 import { PublicKey } from "@solana/web3.js";
 import { Buffer } from "buffer";
 import {
-  TeamRegistry,
-  RetroSession,
+  FacilitatorRegistry,
+  RetroBoard,
   Note,
   Group,
-  ParticipantEntry,
+  BoardMembership,
   VoteRecord,
-  SessionStage,
+  BoardStage,
 } from "../types";
 
 // Helper to read PublicKey from buffer
@@ -65,31 +65,28 @@ function readOptionU64(buffer: Buffer, offset: number): [bigint | null, number] 
   return [readU64(buffer, offset + 1), 9];
 }
 
-export function deserializeTeamRegistry(data: Buffer): TeamRegistry {
+export function deserializeFacilitatorRegistry(data: Buffer): FacilitatorRegistry {
   return {
     isInitialized: data.readUInt8(0) === 1,
-    teamAuthority: readPublicKey(data, 1),
-    sessionCount: readU64(data, 33),
+    facilitator: readPublicKey(data, 1),
+    boardCount: readU64(data, 33),
     bump: data.readUInt8(41),
   };
 }
 
-export function deserializeSession(data: Buffer): RetroSession {
+export function deserializeBoard(data: Buffer): RetroBoard {
   let offset = 0;
 
   const isInitialized = data.readUInt8(offset) === 1;
   offset += 1;
 
-  const teamAuthority = readPublicKey(data, offset);
-  offset += 32;
-
   const facilitator = readPublicKey(data, offset);
   offset += 32;
 
-  const sessionIndex = readU64(data, offset);
+  const boardIndex = readU64(data, offset);
   offset += 8;
 
-  const stage = data.readUInt8(offset) as SessionStage;
+  const stage = data.readUInt8(offset) as BoardStage;
   offset += 1;
 
   const closed = data.readUInt8(offset) === 1;
@@ -120,9 +117,8 @@ export function deserializeSession(data: Buffer): RetroSession {
 
   return {
     isInitialized,
-    teamAuthority,
     facilitator,
-    sessionIndex,
+    boardIndex,
     stage,
     closed,
     categories,
@@ -142,7 +138,7 @@ export function deserializeNote(data: Buffer): Note {
   const isInitialized = data.readUInt8(offset) === 1;
   offset += 1;
 
-  const session = readPublicKey(data, offset);
+  const board = readPublicKey(data, offset);
   offset += 32;
 
   const noteId = readU64(data, offset);
@@ -167,7 +163,7 @@ export function deserializeNote(data: Buffer): Note {
 
   return {
     isInitialized,
-    session,
+    board,
     noteId,
     author,
     categoryId,
@@ -184,7 +180,7 @@ export function deserializeGroup(data: Buffer): Group {
   const isInitialized = data.readUInt8(offset) === 1;
   offset += 1;
 
-  const session = readPublicKey(data, offset);
+  const board = readPublicKey(data, offset);
   offset += 32;
 
   const groupId = readU64(data, offset);
@@ -203,7 +199,7 @@ export function deserializeGroup(data: Buffer): Group {
 
   return {
     isInitialized,
-    session,
+    board,
     groupId,
     title,
     createdBy,
@@ -212,10 +208,10 @@ export function deserializeGroup(data: Buffer): Group {
   };
 }
 
-export function deserializeParticipantEntry(data: Buffer): ParticipantEntry {
+export function deserializeBoardMembership(data: Buffer): BoardMembership {
   return {
     isInitialized: data.readUInt8(0) === 1,
-    session: readPublicKey(data, 1),
+    board: readPublicKey(data, 1),
     participant: readPublicKey(data, 33),
     creditsSpent: data.readUInt8(65),
     bump: data.readUInt8(66),
@@ -225,7 +221,7 @@ export function deserializeParticipantEntry(data: Buffer): ParticipantEntry {
 export function deserializeVoteRecord(data: Buffer): VoteRecord {
   return {
     isInitialized: data.readUInt8(0) === 1,
-    session: readPublicKey(data, 1),
+    board: readPublicKey(data, 1),
     participant: readPublicKey(data, 33),
     groupId: readU64(data, 65),
     creditsSpent: data.readUInt8(73),

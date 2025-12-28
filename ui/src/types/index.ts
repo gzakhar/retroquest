@@ -1,7 +1,7 @@
 import { PublicKey } from "@solana/web3.js";
 
-// Session stages matching Rust enum
-export enum SessionStage {
+// Board stages matching Rust enum
+export enum BoardStage {
   Setup = 0,
   WriteNotes = 1,
   GroupDuplicates = 2,
@@ -9,28 +9,27 @@ export enum SessionStage {
   Discuss = 4,
 }
 
-export const STAGE_NAMES: Record<SessionStage, string> = {
-  [SessionStage.Setup]: "Setup",
-  [SessionStage.WriteNotes]: "Write Notes",
-  [SessionStage.GroupDuplicates]: "Group Duplicates",
-  [SessionStage.Vote]: "Vote",
-  [SessionStage.Discuss]: "Discuss",
+export const STAGE_NAMES: Record<BoardStage, string> = {
+  [BoardStage.Setup]: "Setup",
+  [BoardStage.WriteNotes]: "Write Notes",
+  [BoardStage.GroupDuplicates]: "Group Duplicates",
+  [BoardStage.Vote]: "Vote",
+  [BoardStage.Discuss]: "Discuss",
 };
 
 // Account types matching Rust structs
-export interface TeamRegistry {
+export interface FacilitatorRegistry {
   isInitialized: boolean;
-  teamAuthority: PublicKey;
-  sessionCount: bigint;
+  facilitator: PublicKey;
+  boardCount: bigint;
   bump: number;
 }
 
-export interface RetroSession {
+export interface RetroBoard {
   isInitialized: boolean;
-  teamAuthority: PublicKey;
   facilitator: PublicKey;
-  sessionIndex: bigint;
-  stage: SessionStage;
+  boardIndex: bigint;
+  stage: BoardStage;
   closed: boolean;
   categories: string[];
   allowlist: PublicKey[];
@@ -44,7 +43,7 @@ export interface RetroSession {
 
 export interface Note {
   isInitialized: boolean;
-  session: PublicKey;
+  board: PublicKey;
   noteId: bigint;
   author: PublicKey;
   categoryId: number;
@@ -56,7 +55,7 @@ export interface Note {
 
 export interface Group {
   isInitialized: boolean;
-  session: PublicKey;
+  board: PublicKey;
   groupId: bigint;
   title: string;
   createdBy: PublicKey;
@@ -64,9 +63,9 @@ export interface Group {
   bump: number;
 }
 
-export interface ParticipantEntry {
+export interface BoardMembership {
   isInitialized: boolean;
-  session: PublicKey;
+  board: PublicKey;
   participant: PublicKey;
   creditsSpent: number;
   bump: number;
@@ -74,7 +73,7 @@ export interface ParticipantEntry {
 
 export interface VoteRecord {
   isInitialized: boolean;
-  session: PublicKey;
+  board: PublicKey;
   participant: PublicKey;
   groupId: bigint;
   creditsSpent: number;
@@ -82,9 +81,9 @@ export interface VoteRecord {
 }
 
 // UI-specific types
-export interface SessionWithAddress {
+export interface BoardWithAddress {
   address: PublicKey;
-  data: RetroSession;
+  data: RetroBoard;
 }
 
 export interface NoteWithAddress {
@@ -100,5 +99,5 @@ export interface GroupWithAddress {
 
 // Program ID (deployed on devnet)
 export const PROGRAM_ID = new PublicKey(
-  "AHiDdpGftbt2mVBSeXKafgWVqTFaGtmnC2fMvXR3Uuph"
+  "5bsCkk8edJ7P7mFRjBy9kx2dg88oufae2nnpezitUcyC"
 );

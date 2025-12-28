@@ -5,34 +5,34 @@ import { useProgram } from "../../hooks/useProgram";
 import {
   createCastVoteInstruction,
   findGroupPda,
-  findParticipantEntryPda,
+  findBoardMembershipPda,
   findVoteRecordPda,
 } from "../../utils/instructions";
 import {
-  RetroSession,
+  RetroBoard,
   NoteWithAddress,
   GroupWithAddress,
-  ParticipantEntry,
+  BoardMembership,
   PROGRAM_ID,
 } from "../../types";
 import { GroupCard } from "../GroupCard";
 
 interface Props {
-  session: RetroSession;
+  board: RetroBoard;
   notes: NoteWithAddress[];
   groups: GroupWithAddress[];
-  participantEntry: ParticipantEntry | null;
-  sessionAddress: PublicKey;
+  membership: BoardMembership | null;
+  boardAddress: PublicKey;
   refresh: () => Promise<void>;
   isOnAllowlist: boolean;
 }
 
 export const VoteStage: React.FC<Props> = ({
-  session,
+  board,
   notes,
   groups,
-  participantEntry,
-  sessionAddress,
+  membership,
+  boardAddress,
   refresh,
   isOnAllowlist,
 }) => {
@@ -40,30 +40,30 @@ export const VoteStage: React.FC<Props> = ({
   const { sendInstructions } = useProgram();
   const [voting, setVoting] = useState<bigint | null>(null);
 
-  const creditsSpent = participantEntry?.creditsSpent || 0;
-  const creditsRemaining = session.votingCreditsPerParticipant - creditsSpent;
+  const creditsSpent = membership?.creditsSpent || 0;
+  const creditsRemaining = board.votingCreditsPerParticipant - creditsSpent;
 
   const handleVote = async (groupId: bigint, credits: number) => {
     if (!publicKey || !isOnAllowlist || credits > creditsRemaining) return;
 
     try {
       setVoting(groupId);
-      const [participantEntryPda] = findParticipantEntryPda(
-        sessionAddress,
+      const [boardMembershipPda] = findBoardMembershipPda(
+        boardAddress,
         publicKey,
         PROGRAM_ID
       );
-      const [groupPda] = findGroupPda(sessionAddress, groupId, PROGRAM_ID);
+      const [groupPda] = findGroupPda(boardAddress, groupId, PROGRAM_ID);
       const [voteRecordPda] = findVoteRecordPda(
-        sessionAddress,
+        boardAddress,
         publicKey,
         groupId,
         PROGRAM_ID
       );
 
       const instruction = createCastVoteInstruction(
-        sessionAddress,
-        participantEntryPda,
+        boardAddress,
+        boardMembershipPda,
         groupPda,
         voteRecordPda,
         publicKey,
@@ -152,7 +152,7 @@ export const VoteStage: React.FC<Props> = ({
 
                 {/* Group content */}
                 <div className="flex-1">
-                  <GroupCard group={group} session={session} compact />
+                  <GroupCard group={group} board={board} compact />
                 </div>
 
                 {/* Vote controls */}

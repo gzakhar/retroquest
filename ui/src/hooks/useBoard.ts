@@ -2,48 +2,48 @@ import { useCallback, useEffect, useState, useRef } from "react";
 import { PublicKey } from "@solana/web3.js";
 import { useProgram } from "./useProgram";
 import {
-  deserializeSession,
+  deserializeBoard,
   deserializeNote,
   deserializeGroup,
-  deserializeParticipantEntry,
+  deserializeBoardMembership,
 } from "../utils/deserialize";
-import { findNotePda, findGroupPda, findParticipantEntryPda } from "../utils/pda";
+import { findNotePda, findGroupPda, findBoardMembershipPda } from "../utils/pda";
 import {
-  RetroSession,
+  RetroBoard,
   NoteWithAddress,
   GroupWithAddress,
-  ParticipantEntry,
+  BoardMembership,
   PROGRAM_ID,
 } from "../types";
 
-interface SessionData {
-  session: RetroSession | null;
+interface BoardData {
+  board: RetroBoard | null;
   notes: NoteWithAddress[];
   groups: GroupWithAddress[];
-  participantEntry: ParticipantEntry | null;
+  membership: BoardMembership | null;
   loading: boolean;
   error: string | null;
   refresh: () => Promise<void>;
 }
 
-export function useSession(sessionAddress: PublicKey | null): SessionData {
+export function useBoard(boardAddress: PublicKey | null): BoardData {
   const { connection, publicKey, getAccountInfo } = useProgram();
-  const [session, setSession] = useState<RetroSession | null>(null);
+  const [board, setBoard] = useState<RetroBoard | null>(null);
   const [notes, setNotes] = useState<NoteWithAddress[]>([]);
   const [groups, setGroups] = useState<GroupWithAddress[]>([]);
-  const [participantEntry, setParticipantEntry] =
-    useState<ParticipantEntry | null>(null);
+  const [membership, setMembership] =
+    useState<BoardMembership | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
   const isFetching = useRef(false);
   const retryCount = useRef(0);
 
-  const fetchSession = useCallback(async () => {
+  const fetchBoard = useCallback(async () => {
     // Prevent concurrent fetches
     if (isFetching.current) return;
 
-    if (!sessionAddress) {
+    if (!boardAddress) {
       setLoading(false);
       return;
     }
@@ -57,23 +57,23 @@ export function useSession(sessionAddress: PublicKey | null): SessionData {
       }
       setError(null);
 
-      // Fetch session account
-      const sessionAccountInfo = await getAccountInfo(sessionAddress);
-      if (!sessionAccountInfo) {
-        setError("Session not found");
+      // Fetch board account
+      const boardAccountInfo = await getAccountInfo(boardAddress);
+      if (!boardAccountInfo) {
+        setError("Board not found");
         setLoading(false);
         return;
       }
 
-      const sessionData = deserializeSession(
-        Buffer.from(sessionAccountInfo.data)
+      const boardData = deserializeBoard(
+        Buffer.from(boardAccountInfo.data)
       );
-      setSession(sessionData);
+      setBoard(boardData);
 
       // Fetch all notes
       const noteAddresses: PublicKey[] = [];
-      for (let i = 0n; i < sessionData.noteCount; i++) {
-        const [notePda] = findNotePda(sessionAddress, i, PROGRAM_ID);
+      for (let i = 0n; i < boardData.noteCount; i++) {
+        const [notePda] = findNotePda(boardAddress, i, PROGRAM_ID);
         noteAddresses.push(notePda);
       }
 
@@ -96,8 +96,8 @@ export function useSession(sessionAddress: PublicKey | null): SessionData {
 
       // Fetch all groups
       const groupAddresses: PublicKey[] = [];
-      for (let i = 0n; i < sessionData.groupCount; i++) {
-        const [groupPda] = findGroupPda(sessionAddress, i, PROGRAM_ID);
+      for (let i = 0n; i < boardData.groupCount; i++) {
+        const [groupPda] = findGroupPda(boardAddress, i, PROGRAM_ID);
         groupAddresses.push(groupPda);
       }
 
@@ -119,20 +119,20 @@ export function useSession(sessionAddress: PublicKey | null): SessionData {
         setGroups([]);
       }
 
-      // Fetch participant entry if wallet connected
+      // Fetch board membership if wallet connected
       if (publicKey) {
-        const [participantPda] = findParticipantEntryPda(
-          sessionAddress,
+        const [membershipPda] = findBoardMembershipPda(
+          boardAddress,
           publicKey,
           PROGRAM_ID
         );
-        const participantAccount = await getAccountInfo(participantPda);
-        if (participantAccount) {
-          setParticipantEntry(
-            deserializeParticipantEntry(Buffer.from(participantAccount.data))
+        const membershipAccount = await getAccountInfo(membershipPda);
+        if (membershipAccount) {
+          setMembership(
+            deserializeBoardMembership(Buffer.from(membershipAccount.data))
           );
         } else {
-          setParticipantEntry(null);
+          setMembership(null);
         }
       }
 
@@ -140,7 +140,7 @@ export function useSession(sessionAddress: PublicKey | null): SessionData {
       retryCount.current = 0;
       setLoading(false);
     } catch (err) {
-      console.error("Error fetching session:", err);
+      console.error("Error fetching board:", err);
       // Only show error if we haven't loaded successfully before
       if (!isInitialized) {
         setError(err instanceof Error ? err.message : "Unknown error");
@@ -150,7 +150,7 @@ export function useSession(sessionAddress: PublicKey | null): SessionData {
     } finally {
       isFetching.current = false;
     }
-  }, [sessionAddress, connection, publicKey, getAccountInfo, isInitialized]);
+  }, [boardAddress, connection, publicKey, getAccountInfo, isInitialized]);
 
   // Initial fetch with retry logic
   useEffect(() => {
@@ -160,7 +160,7 @@ export function useSession(sessionAddress: PublicKey | null): SessionData {
     let cancelled = false;
 
     const fetchWithRetry = async () => {
-      await fetchSession();
+      await fetchBoard();
 
       // If initial load failed, retry with backoff (max 3 retries)
       if (!cancelled && retryCount.current < 3) {
@@ -177,23 +177,23 @@ export function useSession(sessionAddress: PublicKey | null): SessionData {
       cancelled = true;
       if (timeoutId) clearTimeout(timeoutId);
     };
-  }, [fetchSession, isInitialized]);
+  }, [fetchBoard, isInitialized]);
 
   // Set up polling for updates (only after successful initial load)
   useEffect(() => {
-    if (!sessionAddress || !isInitialized) return;
+    if (!boardAddress || !isInitialized) return;
 
-    const interval = setInterval(fetchSession, 30000); // Poll every 30 seconds
+    const interval = setInterval(fetchBoard, 30000); // Poll every 30 seconds
     return () => clearInterval(interval);
-  }, [sessionAddress, fetchSession, isInitialized]);
+  }, [boardAddress, fetchBoard, isInitialized]);
 
   return {
-    session,
+    board,
     notes,
     groups,
-    participantEntry,
+    membership,
     loading,
     error,
-    refresh: fetchSession,
+    refresh: fetchBoard,
   };
 }

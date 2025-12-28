@@ -1,44 +1,45 @@
 use borsh::BorshDeserialize;
 use solana_program::{program_error::ProgramError, pubkey::Pubkey};
 
-use crate::state::SessionStage;
+use crate::state::BoardStage;
 
 #[derive(Debug)]
 pub enum RetroInstruction {
-    /// Initialize a team registry
+    /// Initialize a facilitator registry
     /// Accounts:
-    /// 0. `[writable]` Team registry PDA
-    /// 1. `[signer]` Team authority
+    /// 0. `[writable]` Facilitator registry PDA
+    /// 1. `[signer]` Facilitator
     /// 2. `[]` System program
-    InitTeamRegistry,
+    InitFacilitatorRegistry,
 
-    /// Create a new retro session
+    /// Create a new retro board
     /// Accounts:
-    /// 0. `[writable]` Team registry PDA
-    /// 1. `[writable]` Session PDA
-    /// 2. `[signer]` Team authority
+    /// 0. `[writable]` Facilitator registry PDA
+    /// 1. `[writable]` Board PDA
+    /// 2. `[signer]` Facilitator
     /// 3. `[]` System program
-    CreateSession {
+    /// 4+ `[writable]` BoardMembership PDAs for each allowlist member
+    CreateBoard {
         categories: Vec<String>,
         allowlist: Vec<Pubkey>,
         voting_credits_per_participant: Option<u8>,
     },
 
-    /// Advance session to next stage
+    /// Advance board to next stage
     /// Accounts:
-    /// 0. `[writable]` Session PDA
+    /// 0. `[writable]` Board PDA
     /// 1. `[signer]` Facilitator
-    AdvanceStage { new_stage: SessionStage },
+    AdvanceStage { new_stage: BoardStage },
 
-    /// Close the session
+    /// Close the board
     /// Accounts:
-    /// 0. `[writable]` Session PDA
+    /// 0. `[writable]` Board PDA
     /// 1. `[signer]` Facilitator
-    CloseSession,
+    CloseBoard,
 
     /// Create a note (must be on allowlist)
     /// Accounts:
-    /// 0. `[writable]` Session PDA
+    /// 0. `[writable]` Board PDA
     /// 1. `[writable]` Note PDA
     /// 2. `[signer]` Author
     /// 3. `[]` System program
@@ -46,7 +47,7 @@ pub enum RetroInstruction {
 
     /// Create a group (must be on allowlist)
     /// Accounts:
-    /// 0. `[writable]` Session PDA
+    /// 0. `[writable]` Board PDA
     /// 1. `[writable]` Group PDA
     /// 2. `[signer]` Creator
     /// 3. `[]` System program
@@ -54,14 +55,14 @@ pub enum RetroInstruction {
 
     /// Set group title (must be on allowlist)
     /// Accounts:
-    /// 0. `[]` Session PDA
+    /// 0. `[]` Board PDA
     /// 1. `[writable]` Group PDA
     /// 2. `[signer]` Participant
     SetGroupTitle { group_id: u64, title: String },
 
     /// Assign note to group (must be on allowlist)
     /// Accounts:
-    /// 0. `[]` Session PDA
+    /// 0. `[]` Board PDA
     /// 1. `[writable]` Note PDA
     /// 2. `[]` Group PDA
     /// 3. `[signer]` Participant
@@ -69,16 +70,16 @@ pub enum RetroInstruction {
 
     /// Unassign note from group (must be on allowlist)
     /// Accounts:
-    /// 0. `[]` Session PDA
+    /// 0. `[]` Board PDA
     /// 1. `[writable]` Note PDA
     /// 2. `[signer]` Participant
     UnassignNote { note_id: u64 },
 
     /// Cast vote (must be on allowlist)
-    /// Creates ParticipantEntry lazily on first vote to track credits
+    /// Uses BoardMembership to track credits
     /// Accounts:
-    /// 0. `[]` Session PDA
-    /// 1. `[writable]` Participant entry PDA (created if needed)
+    /// 0. `[]` Board PDA
+    /// 1. `[writable]` BoardMembership PDA
     /// 2. `[writable]` Group PDA
     /// 3. `[writable]` Vote record PDA
     /// 4. `[signer]` Voter
@@ -88,7 +89,7 @@ pub enum RetroInstruction {
 
 // Instruction data payloads for Borsh deserialization
 #[derive(BorshDeserialize)]
-struct CreateSessionPayload {
+struct CreateBoardPayload {
     categories: Vec<String>,
     allowlist: Vec<Pubkey>,
     voting_credits_per_participant: Option<u8>,
@@ -140,12 +141,12 @@ impl RetroInstruction {
             .ok_or(ProgramError::InvalidInstructionData)?;
 
         Ok(match variant {
-            0 => Self::InitTeamRegistry,
+            0 => Self::InitFacilitatorRegistry,
 
             1 => {
-                let payload = CreateSessionPayload::try_from_slice(rest)
+                let payload = CreateBoardPayload::try_from_slice(rest)
                     .map_err(|_| ProgramError::InvalidInstructionData)?;
-                Self::CreateSession {
+                Self::CreateBoard {
                     categories: payload.categories,
                     allowlist: payload.allowlist,
                     voting_credits_per_participant: payload.voting_credits_per_participant,
@@ -156,17 +157,17 @@ impl RetroInstruction {
                 let payload = AdvanceStagePayload::try_from_slice(rest)
                     .map_err(|_| ProgramError::InvalidInstructionData)?;
                 let new_stage = match payload.new_stage {
-                    0 => SessionStage::Setup,
-                    1 => SessionStage::WriteNotes,
-                    2 => SessionStage::GroupDuplicates,
-                    3 => SessionStage::Vote,
-                    4 => SessionStage::Discuss,
+                    0 => BoardStage::Setup,
+                    1 => BoardStage::WriteNotes,
+                    2 => BoardStage::GroupDuplicates,
+                    3 => BoardStage::Vote,
+                    4 => BoardStage::Discuss,
                     _ => return Err(ProgramError::InvalidInstructionData),
                 };
                 Self::AdvanceStage { new_stage }
             }
 
-            3 => Self::CloseSession,
+            3 => Self::CloseBoard,
 
             4 => {
                 let payload = CreateNotePayload::try_from_slice(rest)
