@@ -49,6 +49,7 @@ export const SessionView: React.FC = () => {
         isFacilitator: session.facilitator.equals(publicKey),
       });
 
+
       const instruction = createAdvanceStageInstruction(
         sessionAddress,
         publicKey,
