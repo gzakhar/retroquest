@@ -9,6 +9,7 @@ import {
   createCreateSessionInstruction,
   findTeamRegistryPda,
   findSessionPda,
+  findParticipantEntryPda,
 } from "../utils/instructions";
 import { deserializeTeamRegistry } from "../utils/deserialize";
 // Using programId from useProgram hook
@@ -92,6 +93,12 @@ export const CreateSession: React.FC = () => {
       const [sessionPda] = findSessionPda(publicKey, sessionIndex, programId);
       const allowlistPubkeys = allowlist.map((a) => new PublicKey(a));
 
+      // Compute ParticipantEntry PDAs for each participant (enables session discovery)
+      const participantEntryPdas = allowlistPubkeys.map((participant) => {
+        const [pda] = findParticipantEntryPda(sessionPda, participant, programId);
+        return pda;
+      });
+
       instructions.push(
         createCreateSessionInstruction(
           teamRegistryPda,
@@ -100,6 +107,7 @@ export const CreateSession: React.FC = () => {
           categories,
           allowlistPubkeys,
           votingCredits,
+          participantEntryPdas,
           programId
         )
       );

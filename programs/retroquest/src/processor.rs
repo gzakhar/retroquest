@@ -227,6 +227,48 @@ fn process_create_session(
 
     session.serialize(&mut *session_info.data.borrow_mut())?;
 
+    // Create ParticipantEntry for each allowlist member (enables session discovery)
+    for participant_pubkey in &session.allowlist {
+        let participant_entry_info = next_account_info(account_info_iter)?;
+
+        let (pda, participant_bump) = Pubkey::find_program_address(
+            &[PARTICIPANT_SEED, session_info.key.as_ref(), participant_pubkey.as_ref()],
+            program_id,
+        );
+
+        if pda != *participant_entry_info.key {
+            return Err(RetroError::InvalidPDA.into());
+        }
+
+        let space = ParticipantEntry::LEN;
+        let lamports = rent.minimum_balance(space);
+
+        invoke_signed(
+            &system_instruction::create_account(
+                team_authority_info.key,
+                participant_entry_info.key,
+                lamports,
+                space as u64,
+                program_id,
+            ),
+            &[
+                team_authority_info.clone(),
+                participant_entry_info.clone(),
+                system_program_info.clone(),
+            ],
+            &[&[PARTICIPANT_SEED, session_info.key.as_ref(), participant_pubkey.as_ref(), &[participant_bump]]],
+        )?;
+
+        let entry = ParticipantEntry {
+            is_initialized: true,
+            session: *session_info.key,
+            participant: *participant_pubkey,
+            credits_spent: 0,
+            bump: participant_bump,
+        };
+        entry.serialize(&mut *participant_entry_info.data.borrow_mut())?;
+    }
+
     // Update team registry
     team_registry.session_count += 1;
     team_registry.serialize(&mut *team_registry_info.data.borrow_mut())?;

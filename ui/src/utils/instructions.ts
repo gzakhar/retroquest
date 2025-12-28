@@ -112,6 +112,7 @@ export function createCreateSessionInstruction(
   categories: string[],
   allowlist: PublicKey[],
   votingCreditsPerParticipant: number | null,
+  participantEntries: PublicKey[],
   programId: PublicKey
 ): TransactionInstruction {
   const payload = {
@@ -128,6 +129,12 @@ export function createCreateSessionInstruction(
       { pubkey: session, isSigner: false, isWritable: true },
       { pubkey: teamAuthority, isSigner: true, isWritable: true },
       { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+      // ParticipantEntry accounts for each allowlist member (enables session discovery)
+      ...participantEntries.map((pe) => ({
+        pubkey: pe,
+        isSigner: false,
+        isWritable: true,
+      })),
     ],
     programId,
     data: serializeInstruction(CREATE_SESSION, Buffer.from(serialized)),
