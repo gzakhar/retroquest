@@ -20,10 +20,8 @@ pub enum RetroInstruction {
     /// 3. `[]` System program
     CreateSession {
         categories: Vec<String>,
-        max_notes_per_participant: Option<u8>,
+        allowlist: Vec<Pubkey>,
         voting_credits_per_participant: Option<u8>,
-        allowlist_enabled: bool,
-        open_join: bool,
     },
 
     /// Advance session to next stage
@@ -38,85 +36,49 @@ pub enum RetroInstruction {
     /// 1. `[signer]` Facilitator
     CloseSession,
 
-    /// Add participant to allowlist
+    /// Create a note (must be on allowlist)
     /// Accounts:
     /// 0. `[writable]` Session PDA
-    /// 1. `[writable]` Allowlist entry PDA
-    /// 2. `[signer]` Facilitator
+    /// 1. `[writable]` Note PDA
+    /// 2. `[signer]` Author
     /// 3. `[]` System program
-    AddToAllowlist { participant_pubkey: Pubkey },
-
-    /// Remove participant from allowlist
-    /// Accounts:
-    /// 0. `[]` Session PDA
-    /// 1. `[writable]` Allowlist entry PDA
-    /// 2. `[signer]` Facilitator
-    RemoveFromAllowlist { participant_pubkey: Pubkey },
-
-    /// Join session with allowlist
-    /// Accounts:
-    /// 0. `[writable]` Session PDA
-    /// 1. `[]` Allowlist entry PDA
-    /// 2. `[writable]` Participant entry PDA
-    /// 3. `[signer]` Participant
-    /// 4. `[]` System program
-    JoinSessionWithAllowlist,
-
-    /// Join session (open join)
-    /// Accounts:
-    /// 0. `[writable]` Session PDA
-    /// 1. `[writable]` Participant entry PDA
-    /// 2. `[signer]` Participant
-    /// 3. `[]` System program
-    JoinSessionOpen,
-
-    /// Create a note
-    /// Accounts:
-    /// 0. `[writable]` Session PDA
-    /// 1. `[writable]` Participant entry PDA
-    /// 2. `[writable]` Note PDA
-    /// 3. `[signer]` Author
-    /// 4. `[]` System program
     CreateNote { category_id: u8, content: String },
 
-    /// Create a group
+    /// Create a group (must be on allowlist)
     /// Accounts:
     /// 0. `[writable]` Session PDA
-    /// 1. `[]` Participant entry PDA
-    /// 2. `[writable]` Group PDA
-    /// 3. `[signer]` Creator
-    /// 4. `[]` System program
+    /// 1. `[writable]` Group PDA
+    /// 2. `[signer]` Creator
+    /// 3. `[]` System program
     CreateGroup { title: String },
 
-    /// Set group title
+    /// Set group title (must be on allowlist)
     /// Accounts:
     /// 0. `[]` Session PDA
-    /// 1. `[]` Participant entry PDA
-    /// 2. `[writable]` Group PDA
-    /// 3. `[signer]` Participant
+    /// 1. `[writable]` Group PDA
+    /// 2. `[signer]` Participant
     SetGroupTitle { group_id: u64, title: String },
 
-    /// Assign note to group
+    /// Assign note to group (must be on allowlist)
     /// Accounts:
     /// 0. `[]` Session PDA
-    /// 1. `[]` Participant entry PDA
-    /// 2. `[writable]` Note PDA
-    /// 3. `[]` Group PDA
-    /// 4. `[signer]` Participant
+    /// 1. `[writable]` Note PDA
+    /// 2. `[]` Group PDA
+    /// 3. `[signer]` Participant
     AssignNoteToGroup { note_id: u64, group_id: u64 },
 
-    /// Unassign note from group
+    /// Unassign note from group (must be on allowlist)
     /// Accounts:
     /// 0. `[]` Session PDA
-    /// 1. `[]` Participant entry PDA
-    /// 2. `[writable]` Note PDA
-    /// 3. `[signer]` Participant
+    /// 1. `[writable]` Note PDA
+    /// 2. `[signer]` Participant
     UnassignNote { note_id: u64 },
 
-    /// Cast vote
+    /// Cast vote (must be on allowlist)
+    /// Creates ParticipantEntry lazily on first vote to track credits
     /// Accounts:
     /// 0. `[]` Session PDA
-    /// 1. `[writable]` Participant entry PDA
+    /// 1. `[writable]` Participant entry PDA (created if needed)
     /// 2. `[writable]` Group PDA
     /// 3. `[writable]` Vote record PDA
     /// 4. `[signer]` Voter
@@ -128,20 +90,13 @@ pub enum RetroInstruction {
 #[derive(BorshDeserialize)]
 struct CreateSessionPayload {
     categories: Vec<String>,
-    max_notes_per_participant: Option<u8>,
+    allowlist: Vec<Pubkey>,
     voting_credits_per_participant: Option<u8>,
-    allowlist_enabled: bool,
-    open_join: bool,
 }
 
 #[derive(BorshDeserialize)]
 struct AdvanceStagePayload {
     new_stage: u8,
-}
-
-#[derive(BorshDeserialize)]
-struct PubkeyPayload {
-    pubkey: Pubkey,
 }
 
 #[derive(BorshDeserialize)]
@@ -192,10 +147,8 @@ impl RetroInstruction {
                     .map_err(|_| ProgramError::InvalidInstructionData)?;
                 Self::CreateSession {
                     categories: payload.categories,
-                    max_notes_per_participant: payload.max_notes_per_participant,
+                    allowlist: payload.allowlist,
                     voting_credits_per_participant: payload.voting_credits_per_participant,
-                    allowlist_enabled: payload.allowlist_enabled,
-                    open_join: payload.open_join,
                 }
             }
 
@@ -216,26 +169,6 @@ impl RetroInstruction {
             3 => Self::CloseSession,
 
             4 => {
-                let payload = PubkeyPayload::try_from_slice(rest)
-                    .map_err(|_| ProgramError::InvalidInstructionData)?;
-                Self::AddToAllowlist {
-                    participant_pubkey: payload.pubkey,
-                }
-            }
-
-            5 => {
-                let payload = PubkeyPayload::try_from_slice(rest)
-                    .map_err(|_| ProgramError::InvalidInstructionData)?;
-                Self::RemoveFromAllowlist {
-                    participant_pubkey: payload.pubkey,
-                }
-            }
-
-            6 => Self::JoinSessionWithAllowlist,
-
-            7 => Self::JoinSessionOpen,
-
-            8 => {
                 let payload = CreateNotePayload::try_from_slice(rest)
                     .map_err(|_| ProgramError::InvalidInstructionData)?;
                 Self::CreateNote {
@@ -244,7 +177,7 @@ impl RetroInstruction {
                 }
             }
 
-            9 => {
+            5 => {
                 let payload = CreateGroupPayload::try_from_slice(rest)
                     .map_err(|_| ProgramError::InvalidInstructionData)?;
                 Self::CreateGroup {
@@ -252,7 +185,7 @@ impl RetroInstruction {
                 }
             }
 
-            10 => {
+            6 => {
                 let payload = SetGroupTitlePayload::try_from_slice(rest)
                     .map_err(|_| ProgramError::InvalidInstructionData)?;
                 Self::SetGroupTitle {
@@ -261,7 +194,7 @@ impl RetroInstruction {
                 }
             }
 
-            11 => {
+            7 => {
                 let payload = AssignNotePayload::try_from_slice(rest)
                     .map_err(|_| ProgramError::InvalidInstructionData)?;
                 Self::AssignNoteToGroup {
@@ -270,7 +203,7 @@ impl RetroInstruction {
                 }
             }
 
-            12 => {
+            8 => {
                 let payload = UnassignNotePayload::try_from_slice(rest)
                     .map_err(|_| ProgramError::InvalidInstructionData)?;
                 Self::UnassignNote {
@@ -278,7 +211,7 @@ impl RetroInstruction {
                 }
             }
 
-            13 => {
+            9 => {
                 let payload = CastVotePayload::try_from_slice(rest)
                     .map_err(|_| ProgramError::InvalidInstructionData)?;
                 Self::CastVote {

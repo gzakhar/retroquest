@@ -21,17 +21,8 @@ pub enum RetroError {
     #[error("Participant is not on the allowlist")]
     NotOnAllowlist,
 
-    #[error("Participant has already joined the session")]
-    AlreadyJoined,
-
-    #[error("Participant has not joined the session")]
-    NotJoined,
-
-    #[error("Maximum number of participants reached")]
+    #[error("Maximum number of participants in allowlist reached")]
     MaxParticipantsReached,
-
-    #[error("Maximum number of notes per participant reached")]
-    MaxNotesReached,
 
     #[error("Invalid category ID")]
     InvalidCategoryId,
@@ -62,12 +53,6 @@ pub enum RetroError {
 
     #[error("At least one category is required")]
     NoCategoriesSpecified,
-
-    #[error("Open join is not enabled for this session")]
-    OpenJoinDisabled,
-
-    #[error("Allowlist is not enabled for this session")]
-    AllowlistDisabled,
 
     #[error("Invalid PDA derivation")]
     InvalidPDA,

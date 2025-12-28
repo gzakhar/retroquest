@@ -1,0 +1,335 @@
+{
+  "version": "0.1.0",
+  "name": "retroquest",
+  "instructions": [
+    {
+      "name": "initTeamRegistry",
+      "discriminator": [0],
+      "accounts": [
+        {
+          "name": "teamRegistry",
+          "isMut": true,
+          "isSigner": false,
+          "pda": {
+            "seeds": [
+              { "kind": "const", "value": "team_registry" },
+              { "kind": "account", "path": "teamAuthority" }
+            ]
+          }
+        },
+        { "name": "teamAuthority", "isMut": true, "isSigner": true },
+        { "name": "systemProgram", "isMut": false, "isSigner": false }
+      ],
+      "args": []
+    },
+    {
+      "name": "createSession",
+      "discriminator": [1],
+      "accounts": [
+        { "name": "teamRegistry", "isMut": true, "isSigner": false },
+        {
+          "name": "session",
+          "isMut": true,
+          "isSigner": false,
+          "pda": {
+            "seeds": [
+              { "kind": "const", "value": "session" },
+              { "kind": "account", "path": "teamAuthority" },
+              { "kind": "account", "path": "teamRegistry.sessionCount" }
+            ]
+          }
+        },
+        { "name": "teamAuthority", "isMut": true, "isSigner": true },
+        { "name": "systemProgram", "isMut": false, "isSigner": false }
+      ],
+      "args": [
+        { "name": "categories", "type": { "vec": "string" } },
+        { "name": "allowlist", "type": { "vec": "publicKey" } },
+        { "name": "votingCreditsPerParticipant", "type": { "option": "u8" } }
+      ]
+    },
+    {
+      "name": "advanceStage",
+      "discriminator": [2],
+      "accounts": [
+        { "name": "session", "isMut": true, "isSigner": false },
+        { "name": "facilitator", "isMut": false, "isSigner": true }
+      ],
+      "args": [
+        { "name": "newStage", "type": "u8" }
+      ]
+    },
+    {
+      "name": "closeSession",
+      "discriminator": [3],
+      "accounts": [
+        { "name": "session", "isMut": true, "isSigner": false },
+        { "name": "facilitator", "isMut": false, "isSigner": true }
+      ],
+      "args": []
+    },
+    {
+      "name": "createNote",
+      "discriminator": [4],
+      "accounts": [
+        { "name": "session", "isMut": true, "isSigner": false },
+        {
+          "name": "note",
+          "isMut": true,
+          "isSigner": false,
+          "pda": {
+            "seeds": [
+              { "kind": "const", "value": "note" },
+              { "kind": "account", "path": "session" },
+              { "kind": "account", "path": "session.noteCount" }
+            ]
+          }
+        },
+        { "name": "author", "isMut": true, "isSigner": true },
+        { "name": "systemProgram", "isMut": false, "isSigner": false }
+      ],
+      "args": [
+        { "name": "categoryId", "type": "u8" },
+        { "name": "content", "type": "string" }
+      ]
+    },
+    {
+      "name": "createGroup",
+      "discriminator": [5],
+      "accounts": [
+        { "name": "session", "isMut": true, "isSigner": false },
+        {
+          "name": "group",
+          "isMut": true,
+          "isSigner": false,
+          "pda": {
+            "seeds": [
+              { "kind": "const", "value": "group" },
+              { "kind": "account", "path": "session" },
+              { "kind": "account", "path": "session.groupCount" }
+            ]
+          }
+        },
+        { "name": "creator", "isMut": true, "isSigner": true },
+        { "name": "systemProgram", "isMut": false, "isSigner": false }
+      ],
+      "args": [
+        { "name": "title", "type": "string" }
+      ]
+    },
+    {
+      "name": "setGroupTitle",
+      "discriminator": [6],
+      "accounts": [
+        { "name": "session", "isMut": false, "isSigner": false },
+        { "name": "group", "isMut": true, "isSigner": false },
+        { "name": "participant", "isMut": false, "isSigner": true }
+      ],
+      "args": [
+        { "name": "groupId", "type": "u64" },
+        { "name": "title", "type": "string" }
+      ]
+    },
+    {
+      "name": "assignNoteToGroup",
+      "discriminator": [7],
+      "accounts": [
+        { "name": "session", "isMut": false, "isSigner": false },
+        { "name": "note", "isMut": true, "isSigner": false },
+        { "name": "group", "isMut": false, "isSigner": false },
+        { "name": "participant", "isMut": false, "isSigner": true }
+      ],
+      "args": [
+        { "name": "noteId", "type": "u64" },
+        { "name": "groupId", "type": "u64" }
+      ]
+    },
+    {
+      "name": "unassignNote",
+      "discriminator": [8],
+      "accounts": [
+        { "name": "session", "isMut": false, "isSigner": false },
+        { "name": "note", "isMut": true, "isSigner": false },
+        { "name": "participant", "isMut": false, "isSigner": true }
+      ],
+      "args": [
+        { "name": "noteId", "type": "u64" }
+      ]
+    },
+    {
+      "name": "castVote",
+      "discriminator": [9],
+      "accounts": [
+        { "name": "session", "isMut": false, "isSigner": false },
+        {
+          "name": "participantEntry",
+          "isMut": true,
+          "isSigner": false,
+          "pda": {
+            "seeds": [
+              { "kind": "const", "value": "participant" },
+              { "kind": "account", "path": "session" },
+              { "kind": "account", "path": "voter" }
+            ]
+          }
+        },
+        { "name": "group", "isMut": true, "isSigner": false },
+        {
+          "name": "voteRecord",
+          "isMut": true,
+          "isSigner": false,
+          "pda": {
+            "seeds": [
+              { "kind": "const", "value": "vote" },
+              { "kind": "account", "path": "session" },
+              { "kind": "account", "path": "voter" },
+              { "kind": "arg", "path": "groupId" }
+            ]
+          }
+        },
+        { "name": "voter", "isMut": true, "isSigner": true },
+        { "name": "systemProgram", "isMut": false, "isSigner": false }
+      ],
+      "args": [
+        { "name": "groupId", "type": "u64" },
+        { "name": "creditsDelta", "type": "u8" }
+      ]
+    }
+  ],
+  "accounts": [
+    {
+      "name": "TeamRegistry",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          { "name": "isInitialized", "type": "bool" },
+          { "name": "teamAuthority", "type": "publicKey" },
+          { "name": "sessionCount", "type": "u64" },
+          { "name": "bump", "type": "u8" }
+        ]
+      }
+    },
+    {
+      "name": "RetroSession",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          { "name": "isInitialized", "type": "bool" },
+          { "name": "teamAuthority", "type": "publicKey" },
+          { "name": "facilitator", "type": "publicKey" },
+          { "name": "sessionIndex", "type": "u64" },
+          { "name": "stage", "type": { "defined": "SessionStage" } },
+          { "name": "closed", "type": "bool" },
+          { "name": "categories", "type": { "vec": "string" } },
+          { "name": "allowlist", "type": { "vec": "publicKey" } },
+          { "name": "votingCreditsPerParticipant", "type": "u8" },
+          { "name": "noteCount", "type": "u64" },
+          { "name": "groupCount", "type": "u64" },
+          { "name": "createdAtSlot", "type": "u64" },
+          { "name": "stageChangedAtSlot", "type": "u64" },
+          { "name": "bump", "type": "u8" }
+        ]
+      }
+    },
+    {
+      "name": "ParticipantEntry",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          { "name": "isInitialized", "type": "bool" },
+          { "name": "session", "type": "publicKey" },
+          { "name": "participant", "type": "publicKey" },
+          { "name": "creditsSpent", "type": "u8" },
+          { "name": "bump", "type": "u8" }
+        ]
+      }
+    },
+    {
+      "name": "Note",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          { "name": "isInitialized", "type": "bool" },
+          { "name": "session", "type": "publicKey" },
+          { "name": "noteId", "type": "u64" },
+          { "name": "author", "type": "publicKey" },
+          { "name": "categoryId", "type": "u8" },
+          { "name": "content", "type": "string" },
+          { "name": "createdAtSlot", "type": "u64" },
+          { "name": "groupId", "type": { "option": "u64" } },
+          { "name": "bump", "type": "u8" }
+        ]
+      }
+    },
+    {
+      "name": "Group",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          { "name": "isInitialized", "type": "bool" },
+          { "name": "session", "type": "publicKey" },
+          { "name": "groupId", "type": "u64" },
+          { "name": "title", "type": "string" },
+          { "name": "createdBy", "type": "publicKey" },
+          { "name": "voteTally", "type": "u64" },
+          { "name": "bump", "type": "u8" }
+        ]
+      }
+    },
+    {
+      "name": "VoteRecord",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          { "name": "isInitialized", "type": "bool" },
+          { "name": "session", "type": "publicKey" },
+          { "name": "participant", "type": "publicKey" },
+          { "name": "groupId", "type": "u64" },
+          { "name": "creditsSpent", "type": "u8" },
+          { "name": "bump", "type": "u8" }
+        ]
+      }
+    }
+  ],
+  "types": [
+    {
+      "name": "SessionStage",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          { "name": "Setup" },
+          { "name": "WriteNotes" },
+          { "name": "GroupDuplicates" },
+          { "name": "Vote" },
+          { "name": "Discuss" }
+        ]
+      }
+    }
+  ],
+  "errors": [
+    { "code": 0, "name": "UnauthorizedFacilitator", "msg": "Only the facilitator can perform this action" },
+    { "code": 1, "name": "UnauthorizedTeamAuthority", "msg": "Only the team authority can perform this action" },
+    { "code": 2, "name": "SessionClosed", "msg": "Session is closed and cannot be modified" },
+    { "code": 3, "name": "InvalidStage", "msg": "Invalid stage for this operation" },
+    { "code": 4, "name": "InvalidStageTransition", "msg": "Cannot advance to the requested stage" },
+    { "code": 5, "name": "NotOnAllowlist", "msg": "Participant is not on the allowlist" },
+    { "code": 6, "name": "MaxParticipantsReached", "msg": "Maximum number of participants in allowlist reached" },
+    { "code": 7, "name": "InvalidCategoryId", "msg": "Invalid category ID" },
+    { "code": 8, "name": "NoteTooLong", "msg": "Note content exceeds maximum length" },
+    { "code": 9, "name": "GroupTitleTooLong", "msg": "Group title exceeds maximum length" },
+    { "code": 10, "name": "NoteAlreadyGrouped", "msg": "Note is already assigned to a group" },
+    { "code": 11, "name": "NoteNotGrouped", "msg": "Note is not assigned to any group" },
+    { "code": 12, "name": "InsufficientCredits", "msg": "Insufficient voting credits" },
+    { "code": 13, "name": "CannotDecreaseVotes", "msg": "Vote credits can only be increased, not decreased" },
+    { "code": 14, "name": "TooManyCategories", "msg": "Too many categories specified" },
+    { "code": 15, "name": "CategoryNameTooLong", "msg": "Category name is too long" },
+    { "code": 16, "name": "NoCategoriesSpecified", "msg": "At least one category is required" },
+    { "code": 17, "name": "InvalidPDA", "msg": "Invalid PDA derivation" },
+    { "code": 18, "name": "AccountNotInitialized", "msg": "Account not initialized" },
+    { "code": 19, "name": "AccountAlreadyInitialized", "msg": "Account already initialized" },
+    { "code": 20, "name": "InvalidAccountOwner", "msg": "Invalid account owner" }
+  ],
+  "metadata": {
+    "address": "RQst1111111111111111111111111111111111111111"
+  }
+}

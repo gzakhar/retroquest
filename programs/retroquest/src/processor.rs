@@ -30,36 +30,20 @@ pub fn process_instruction(
         }
         RetroInstruction::CreateSession {
             categories,
-            max_notes_per_participant,
+            allowlist,
             voting_credits_per_participant,
-            allowlist_enabled,
-            open_join,
         } => process_create_session(
             program_id,
             accounts,
             categories,
-            max_notes_per_participant,
+            allowlist,
             voting_credits_per_participant,
-            allowlist_enabled,
-            open_join,
         ),
         RetroInstruction::AdvanceStage { new_stage } => {
             process_advance_stage(program_id, accounts, new_stage)
         }
         RetroInstruction::CloseSession => {
             process_close_session(program_id, accounts)
-        }
-        RetroInstruction::AddToAllowlist { participant_pubkey } => {
-            process_add_to_allowlist(program_id, accounts, participant_pubkey)
-        }
-        RetroInstruction::RemoveFromAllowlist { participant_pubkey } => {
-            process_remove_from_allowlist(program_id, accounts, participant_pubkey)
-        }
-        RetroInstruction::JoinSessionWithAllowlist => {
-            process_join_session_with_allowlist(program_id, accounts)
-        }
-        RetroInstruction::JoinSessionOpen => {
-            process_join_session_open(program_id, accounts)
         }
         RetroInstruction::CreateNote { category_id, content } => {
             process_create_note(program_id, accounts, category_id, content)
@@ -142,10 +126,8 @@ fn process_create_session(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
     categories: Vec<String>,
-    max_notes_per_participant: Option<u8>,
+    allowlist: Vec<Pubkey>,
     voting_credits_per_participant: Option<u8>,
-    allowlist_enabled: bool,
-    open_join: bool,
 ) -> ProgramResult {
     msg!("Instruction: CreateSession");
     let account_info_iter = &mut accounts.iter();
@@ -170,6 +152,11 @@ fn process_create_session(
         if category.len() > MAX_CATEGORY_NAME_LEN {
             return Err(RetroError::CategoryNameTooLong.into());
         }
+    }
+
+    // Validate allowlist
+    if allowlist.len() > MAX_PARTICIPANTS {
+        return Err(RetroError::MaxParticipantsReached.into());
     }
 
     // Deserialize and validate team registry
@@ -229,11 +216,8 @@ fn process_create_session(
         stage: SessionStage::Setup,
         closed: false,
         categories,
-        max_notes_per_participant: max_notes_per_participant.unwrap_or(MAX_NOTES_PER_PARTICIPANT),
+        allowlist,
         voting_credits_per_participant: voting_credits_per_participant.unwrap_or(VOTING_CREDITS_DEFAULT),
-        allowlist_enabled,
-        open_join,
-        participant_count: 0,
         note_count: 0,
         group_count: 0,
         created_at_slot: clock.slot,
@@ -330,305 +314,6 @@ fn process_close_session(
     Ok(())
 }
 
-fn process_add_to_allowlist(
-    program_id: &Pubkey,
-    accounts: &[AccountInfo],
-    participant_pubkey: Pubkey,
-) -> ProgramResult {
-    msg!("Instruction: AddToAllowlist");
-    let account_info_iter = &mut accounts.iter();
-
-    let session_info = next_account_info(account_info_iter)?;
-    let allowlist_entry_info = next_account_info(account_info_iter)?;
-    let facilitator_info = next_account_info(account_info_iter)?;
-    let system_program_info = next_account_info(account_info_iter)?;
-
-    if !facilitator_info.is_signer {
-        return Err(ProgramError::MissingRequiredSignature);
-    }
-
-    if session_info.owner != program_id {
-        return Err(RetroError::InvalidAccountOwner.into());
-    }
-
-    let session = RetroSession::try_from_slice(&session_info.data.borrow())?;
-    if !session.is_initialized {
-        return Err(RetroError::AccountNotInitialized.into());
-    }
-    if session.facilitator != *facilitator_info.key {
-        return Err(RetroError::UnauthorizedFacilitator.into());
-    }
-    if session.closed {
-        return Err(RetroError::SessionClosed.into());
-    }
-    if session.stage != SessionStage::Setup {
-        return Err(RetroError::InvalidStage.into());
-    }
-    if !session.allowlist_enabled {
-        return Err(RetroError::AllowlistDisabled.into());
-    }
-
-    let (pda, bump) = Pubkey::find_program_address(
-        &[ALLOWLIST_SEED, session_info.key.as_ref(), participant_pubkey.as_ref()],
-        program_id,
-    );
-
-    if pda != *allowlist_entry_info.key {
-        return Err(RetroError::InvalidPDA.into());
-    }
-
-    let rent = Rent::get()?;
-    let space = AllowlistEntry::LEN;
-    let lamports = rent.minimum_balance(space);
-
-    invoke_signed(
-        &system_instruction::create_account(
-            facilitator_info.key,
-            allowlist_entry_info.key,
-            lamports,
-            space as u64,
-            program_id,
-        ),
-        &[
-            facilitator_info.clone(),
-            allowlist_entry_info.clone(),
-            system_program_info.clone(),
-        ],
-        &[&[ALLOWLIST_SEED, session_info.key.as_ref(), participant_pubkey.as_ref(), &[bump]]],
-    )?;
-
-    let allowlist_entry = AllowlistEntry {
-        is_initialized: true,
-        session: *session_info.key,
-        participant: participant_pubkey,
-        allowed: true,
-        bump,
-    };
-
-    allowlist_entry.serialize(&mut *allowlist_entry_info.data.borrow_mut())?;
-
-    Ok(())
-}
-
-fn process_remove_from_allowlist(
-    program_id: &Pubkey,
-    accounts: &[AccountInfo],
-    _participant_pubkey: Pubkey,
-) -> ProgramResult {
-    msg!("Instruction: RemoveFromAllowlist");
-    let account_info_iter = &mut accounts.iter();
-
-    let session_info = next_account_info(account_info_iter)?;
-    let allowlist_entry_info = next_account_info(account_info_iter)?;
-    let facilitator_info = next_account_info(account_info_iter)?;
-
-    if !facilitator_info.is_signer {
-        return Err(ProgramError::MissingRequiredSignature);
-    }
-
-    if session_info.owner != program_id {
-        return Err(RetroError::InvalidAccountOwner.into());
-    }
-
-    let session = RetroSession::try_from_slice(&session_info.data.borrow())?;
-    if !session.is_initialized {
-        return Err(RetroError::AccountNotInitialized.into());
-    }
-    if session.facilitator != *facilitator_info.key {
-        return Err(RetroError::UnauthorizedFacilitator.into());
-    }
-    if session.closed {
-        return Err(RetroError::SessionClosed.into());
-    }
-    if session.stage != SessionStage::Setup {
-        return Err(RetroError::InvalidStage.into());
-    }
-    if !session.allowlist_enabled {
-        return Err(RetroError::AllowlistDisabled.into());
-    }
-
-    // Close account by transferring lamports
-    let dest_starting_lamports = facilitator_info.lamports();
-    **facilitator_info.lamports.borrow_mut() = dest_starting_lamports
-        .checked_add(allowlist_entry_info.lamports())
-        .ok_or(ProgramError::InvalidAccountData)?;
-    **allowlist_entry_info.lamports.borrow_mut() = 0;
-
-    Ok(())
-}
-
-fn process_join_session_with_allowlist(
-    program_id: &Pubkey,
-    accounts: &[AccountInfo],
-) -> ProgramResult {
-    msg!("Instruction: JoinSessionWithAllowlist");
-    let account_info_iter = &mut accounts.iter();
-
-    let session_info = next_account_info(account_info_iter)?;
-    let allowlist_entry_info = next_account_info(account_info_iter)?;
-    let participant_entry_info = next_account_info(account_info_iter)?;
-    let participant_info = next_account_info(account_info_iter)?;
-    let system_program_info = next_account_info(account_info_iter)?;
-
-    if !participant_info.is_signer {
-        return Err(ProgramError::MissingRequiredSignature);
-    }
-
-    if session_info.owner != program_id {
-        return Err(RetroError::InvalidAccountOwner.into());
-    }
-
-    let mut session = RetroSession::try_from_slice(&session_info.data.borrow())?;
-    if !session.is_initialized {
-        return Err(RetroError::AccountNotInitialized.into());
-    }
-    if session.closed {
-        return Err(RetroError::SessionClosed.into());
-    }
-    if !session.allowlist_enabled {
-        return Err(RetroError::AllowlistDisabled.into());
-    }
-    if session.participant_count >= MAX_PARTICIPANTS {
-        return Err(RetroError::MaxParticipantsReached.into());
-    }
-
-    // Verify allowlist entry
-    let allowlist_entry = AllowlistEntry::try_from_slice(&allowlist_entry_info.data.borrow())?;
-    if !allowlist_entry.is_initialized || !allowlist_entry.allowed {
-        return Err(RetroError::NotOnAllowlist.into());
-    }
-    if allowlist_entry.participant != *participant_info.key {
-        return Err(RetroError::NotOnAllowlist.into());
-    }
-
-    let (pda, bump) = Pubkey::find_program_address(
-        &[PARTICIPANT_SEED, session_info.key.as_ref(), participant_info.key.as_ref()],
-        program_id,
-    );
-
-    if pda != *participant_entry_info.key {
-        return Err(RetroError::InvalidPDA.into());
-    }
-
-    let rent = Rent::get()?;
-    let space = ParticipantEntry::LEN;
-    let lamports = rent.minimum_balance(space);
-
-    invoke_signed(
-        &system_instruction::create_account(
-            participant_info.key,
-            participant_entry_info.key,
-            lamports,
-            space as u64,
-            program_id,
-        ),
-        &[
-            participant_info.clone(),
-            participant_entry_info.clone(),
-            system_program_info.clone(),
-        ],
-        &[&[PARTICIPANT_SEED, session_info.key.as_ref(), participant_info.key.as_ref(), &[bump]]],
-    )?;
-
-    let participant_entry = ParticipantEntry {
-        is_initialized: true,
-        session: *session_info.key,
-        participant: *participant_info.key,
-        joined: true,
-        notes_submitted: 0,
-        credits_spent: 0,
-        bump,
-    };
-
-    participant_entry.serialize(&mut *participant_entry_info.data.borrow_mut())?;
-
-    session.participant_count += 1;
-    session.serialize(&mut *session_info.data.borrow_mut())?;
-
-    Ok(())
-}
-
-fn process_join_session_open(
-    program_id: &Pubkey,
-    accounts: &[AccountInfo],
-) -> ProgramResult {
-    msg!("Instruction: JoinSessionOpen");
-    let account_info_iter = &mut accounts.iter();
-
-    let session_info = next_account_info(account_info_iter)?;
-    let participant_entry_info = next_account_info(account_info_iter)?;
-    let participant_info = next_account_info(account_info_iter)?;
-    let system_program_info = next_account_info(account_info_iter)?;
-
-    if !participant_info.is_signer {
-        return Err(ProgramError::MissingRequiredSignature);
-    }
-
-    if session_info.owner != program_id {
-        return Err(RetroError::InvalidAccountOwner.into());
-    }
-
-    let mut session = RetroSession::try_from_slice(&session_info.data.borrow())?;
-    if !session.is_initialized {
-        return Err(RetroError::AccountNotInitialized.into());
-    }
-    if session.closed {
-        return Err(RetroError::SessionClosed.into());
-    }
-    if !session.open_join {
-        return Err(RetroError::OpenJoinDisabled.into());
-    }
-    if session.participant_count >= MAX_PARTICIPANTS {
-        return Err(RetroError::MaxParticipantsReached.into());
-    }
-
-    let (pda, bump) = Pubkey::find_program_address(
-        &[PARTICIPANT_SEED, session_info.key.as_ref(), participant_info.key.as_ref()],
-        program_id,
-    );
-
-    if pda != *participant_entry_info.key {
-        return Err(RetroError::InvalidPDA.into());
-    }
-
-    let rent = Rent::get()?;
-    let space = ParticipantEntry::LEN;
-    let lamports = rent.minimum_balance(space);
-
-    invoke_signed(
-        &system_instruction::create_account(
-            participant_info.key,
-            participant_entry_info.key,
-            lamports,
-            space as u64,
-            program_id,
-        ),
-        &[
-            participant_info.clone(),
-            participant_entry_info.clone(),
-            system_program_info.clone(),
-        ],
-        &[&[PARTICIPANT_SEED, session_info.key.as_ref(), participant_info.key.as_ref(), &[bump]]],
-    )?;
-
-    let participant_entry = ParticipantEntry {
-        is_initialized: true,
-        session: *session_info.key,
-        participant: *participant_info.key,
-        joined: true,
-        notes_submitted: 0,
-        credits_spent: 0,
-        bump,
-    };
-
-    participant_entry.serialize(&mut *participant_entry_info.data.borrow_mut())?;
-
-    session.participant_count += 1;
-    session.serialize(&mut *session_info.data.borrow_mut())?;
-
-    Ok(())
-}
-
 fn process_create_note(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
@@ -639,7 +324,6 @@ fn process_create_note(
     let account_info_iter = &mut accounts.iter();
 
     let session_info = next_account_info(account_info_iter)?;
-    let participant_entry_info = next_account_info(account_info_iter)?;
     let note_info = next_account_info(account_info_iter)?;
     let author_info = next_account_info(account_info_iter)?;
     let system_program_info = next_account_info(account_info_iter)?;
@@ -662,22 +346,16 @@ fn process_create_note(
     if session.stage != SessionStage::WriteNotes {
         return Err(RetroError::InvalidStage.into());
     }
+
+    if !session.allowlist.contains(author_info.key) {
+        return Err(RetroError::NotOnAllowlist.into());
+    }
+
     if content.len() > MAX_NOTE_CHARS {
         return Err(RetroError::NoteTooLong.into());
     }
     if category_id as usize >= session.categories.len() {
         return Err(RetroError::InvalidCategoryId.into());
-    }
-
-    let mut participant_entry = ParticipantEntry::try_from_slice(&participant_entry_info.data.borrow())?;
-    if !participant_entry.is_initialized || !participant_entry.joined {
-        return Err(RetroError::NotJoined.into());
-    }
-    if participant_entry.participant != *author_info.key {
-        return Err(ProgramError::InvalidAccountData);
-    }
-    if participant_entry.notes_submitted >= session.max_notes_per_participant {
-        return Err(RetroError::MaxNotesReached.into());
     }
 
     let note_id = session.note_count;
@@ -725,9 +403,6 @@ fn process_create_note(
 
     note.serialize(&mut *note_info.data.borrow_mut())?;
 
-    participant_entry.notes_submitted += 1;
-    participant_entry.serialize(&mut *participant_entry_info.data.borrow_mut())?;
-
     session.note_count += 1;
     session.serialize(&mut *session_info.data.borrow_mut())?;
 
@@ -743,7 +418,6 @@ fn process_create_group(
     let account_info_iter = &mut accounts.iter();
 
     let session_info = next_account_info(account_info_iter)?;
-    let participant_entry_info = next_account_info(account_info_iter)?;
     let group_info = next_account_info(account_info_iter)?;
     let creator_info = next_account_info(account_info_iter)?;
     let system_program_info = next_account_info(account_info_iter)?;
@@ -766,13 +440,14 @@ fn process_create_group(
     if session.stage != SessionStage::GroupDuplicates {
         return Err(RetroError::InvalidStage.into());
     }
-    if title.len() > MAX_GROUP_TITLE_CHARS {
-        return Err(RetroError::GroupTitleTooLong.into());
+
+    // Check allowlist
+    if !session.allowlist.contains(creator_info.key) {
+        return Err(RetroError::NotOnAllowlist.into());
     }
 
-    let participant_entry = ParticipantEntry::try_from_slice(&participant_entry_info.data.borrow())?;
-    if !participant_entry.is_initialized || !participant_entry.joined {
-        return Err(RetroError::NotJoined.into());
+    if title.len() > MAX_GROUP_TITLE_CHARS {
+        return Err(RetroError::GroupTitleTooLong.into());
     }
 
     let group_id = session.group_count;
@@ -833,7 +508,6 @@ fn process_set_group_title(
     let account_info_iter = &mut accounts.iter();
 
     let session_info = next_account_info(account_info_iter)?;
-    let participant_entry_info = next_account_info(account_info_iter)?;
     let group_info = next_account_info(account_info_iter)?;
     let participant_info = next_account_info(account_info_iter)?;
 
@@ -855,13 +529,14 @@ fn process_set_group_title(
     if session.stage != SessionStage::GroupDuplicates {
         return Err(RetroError::InvalidStage.into());
     }
-    if title.len() > MAX_GROUP_TITLE_CHARS {
-        return Err(RetroError::GroupTitleTooLong.into());
+
+    // Check allowlist
+    if !session.allowlist.contains(participant_info.key) {
+        return Err(RetroError::NotOnAllowlist.into());
     }
 
-    let participant_entry = ParticipantEntry::try_from_slice(&participant_entry_info.data.borrow())?;
-    if !participant_entry.is_initialized || !participant_entry.joined {
-        return Err(RetroError::NotJoined.into());
+    if title.len() > MAX_GROUP_TITLE_CHARS {
+        return Err(RetroError::GroupTitleTooLong.into());
     }
 
     let mut group = Group::try_from_slice(&group_info.data.borrow())?;
@@ -885,7 +560,6 @@ fn process_assign_note_to_group(
     let account_info_iter = &mut accounts.iter();
 
     let session_info = next_account_info(account_info_iter)?;
-    let participant_entry_info = next_account_info(account_info_iter)?;
     let note_info = next_account_info(account_info_iter)?;
     let group_info = next_account_info(account_info_iter)?;
     let participant_info = next_account_info(account_info_iter)?;
@@ -909,9 +583,9 @@ fn process_assign_note_to_group(
         return Err(RetroError::InvalidStage.into());
     }
 
-    let participant_entry = ParticipantEntry::try_from_slice(&participant_entry_info.data.borrow())?;
-    if !participant_entry.is_initialized || !participant_entry.joined {
-        return Err(RetroError::NotJoined.into());
+    // Check allowlist
+    if !session.allowlist.contains(participant_info.key) {
+        return Err(RetroError::NotOnAllowlist.into());
     }
 
     let group = Group::try_from_slice(&group_info.data.borrow())?;
@@ -942,7 +616,6 @@ fn process_unassign_note(
     let account_info_iter = &mut accounts.iter();
 
     let session_info = next_account_info(account_info_iter)?;
-    let participant_entry_info = next_account_info(account_info_iter)?;
     let note_info = next_account_info(account_info_iter)?;
     let participant_info = next_account_info(account_info_iter)?;
 
@@ -965,9 +638,9 @@ fn process_unassign_note(
         return Err(RetroError::InvalidStage.into());
     }
 
-    let participant_entry = ParticipantEntry::try_from_slice(&participant_entry_info.data.borrow())?;
-    if !participant_entry.is_initialized || !participant_entry.joined {
-        return Err(RetroError::NotJoined.into());
+    // Check allowlist
+    if !session.allowlist.contains(participant_info.key) {
+        return Err(RetroError::NotOnAllowlist.into());
     }
 
     let mut note = Note::try_from_slice(&note_info.data.borrow())?;
@@ -1018,14 +691,58 @@ fn process_cast_vote(
     if session.stage != SessionStage::Vote {
         return Err(RetroError::InvalidStage.into());
     }
+
+    // Check allowlist
+    if !session.allowlist.contains(voter_info.key) {
+        return Err(RetroError::NotOnAllowlist.into());
+    }
+
     if credits_delta == 0 {
         return Err(RetroError::CannotDecreaseVotes.into());
     }
 
-    let mut participant_entry = ParticipantEntry::try_from_slice(&participant_entry_info.data.borrow())?;
-    if !participant_entry.is_initialized || !participant_entry.joined {
-        return Err(RetroError::NotJoined.into());
+    // Verify ParticipantEntry PDA
+    let (participant_pda, participant_bump) = Pubkey::find_program_address(
+        &[PARTICIPANT_SEED, session_info.key.as_ref(), voter_info.key.as_ref()],
+        program_id,
+    );
+
+    if participant_pda != *participant_entry_info.key {
+        return Err(RetroError::InvalidPDA.into());
     }
+
+    // Create or load ParticipantEntry (lazy creation on first vote)
+    let mut participant_entry = if participant_entry_info.data_is_empty() {
+        let rent = Rent::get()?;
+        let space = ParticipantEntry::LEN;
+        let lamports = rent.minimum_balance(space);
+
+        invoke_signed(
+            &system_instruction::create_account(
+                voter_info.key,
+                participant_entry_info.key,
+                lamports,
+                space as u64,
+                program_id,
+            ),
+            &[
+                voter_info.clone(),
+                participant_entry_info.clone(),
+                system_program_info.clone(),
+            ],
+            &[&[PARTICIPANT_SEED, session_info.key.as_ref(), voter_info.key.as_ref(), &[participant_bump]]],
+        )?;
+
+        ParticipantEntry {
+            is_initialized: true,
+            session: *session_info.key,
+            participant: *voter_info.key,
+            credits_spent: 0,
+            bump: participant_bump,
+        }
+    } else {
+        ParticipantEntry::try_from_slice(&participant_entry_info.data.borrow())?
+    };
 
     let total_credits_after = participant_entry.credits_spent
         .checked_add(credits_delta)
@@ -1040,12 +757,12 @@ fn process_cast_vote(
         return Err(RetroError::AccountNotInitialized.into());
     }
 
-    let (pda, bump) = Pubkey::find_program_address(
+    let (vote_pda, vote_bump) = Pubkey::find_program_address(
         &[VOTE_SEED, session_info.key.as_ref(), voter_info.key.as_ref(), &group_id.to_le_bytes()],
         program_id,
     );
 
-    if pda != *vote_record_info.key {
+    if vote_pda != *vote_record_info.key {
         return Err(RetroError::InvalidPDA.into());
     }
 
@@ -1068,7 +785,7 @@ fn process_cast_vote(
                 vote_record_info.clone(),
                 system_program_info.clone(),
             ],
-            &[&[VOTE_SEED, session_info.key.as_ref(), voter_info.key.as_ref(), &group_id.to_le_bytes(), &[bump]]],
+            &[&[VOTE_SEED, session_info.key.as_ref(), voter_info.key.as_ref(), &group_id.to_le_bytes(), &[vote_bump]]],
         )?;
 
         VoteRecord {
@@ -1077,7 +794,7 @@ fn process_cast_vote(
             participant: *voter_info.key,
             group_id,
             credits_spent: 0,
-            bump,
+            bump: vote_bump,
         }
     } else {
         VoteRecord::try_from_slice(&vote_record_info.data.borrow())?
