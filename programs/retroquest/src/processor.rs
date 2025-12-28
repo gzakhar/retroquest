@@ -160,7 +160,7 @@ fn process_create_session(
     }
 
     // Deserialize and validate team registry
-    let mut team_registry = TeamRegistry::try_from_slice(&team_registry_info.data.borrow())?;
+    let mut team_registry = TeamRegistry::deserialize(&mut &team_registry_info.data.borrow()[..])?;
     if !team_registry.is_initialized {
         return Err(RetroError::AccountNotInitialized.into());
     }
@@ -253,7 +253,7 @@ fn process_advance_stage(
         return Err(RetroError::InvalidAccountOwner.into());
     }
 
-    let mut session = RetroSession::try_from_slice(&session_info.data.borrow())?;
+    let mut session = RetroSession::deserialize(&mut &session_info.data.borrow()[..])?;
     if !session.is_initialized {
         return Err(RetroError::AccountNotInitialized.into());
     }
@@ -294,7 +294,7 @@ fn process_close_session(
         return Err(RetroError::InvalidAccountOwner.into());
     }
 
-    let mut session = RetroSession::try_from_slice(&session_info.data.borrow())?;
+    let mut session = RetroSession::deserialize(&mut &session_info.data.borrow()[..])?;
     if !session.is_initialized {
         return Err(RetroError::AccountNotInitialized.into());
     }
@@ -336,7 +336,7 @@ fn process_create_note(
         return Err(RetroError::InvalidAccountOwner.into());
     }
 
-    let mut session = RetroSession::try_from_slice(&session_info.data.borrow())?;
+    let mut session = RetroSession::deserialize(&mut &session_info.data.borrow()[..])?;
     if !session.is_initialized {
         return Err(RetroError::AccountNotInitialized.into());
     }
@@ -430,7 +430,7 @@ fn process_create_group(
         return Err(RetroError::InvalidAccountOwner.into());
     }
 
-    let mut session = RetroSession::try_from_slice(&session_info.data.borrow())?;
+    let mut session = RetroSession::deserialize(&mut &session_info.data.borrow()[..])?;
     if !session.is_initialized {
         return Err(RetroError::AccountNotInitialized.into());
     }
@@ -519,7 +519,7 @@ fn process_set_group_title(
         return Err(RetroError::InvalidAccountOwner.into());
     }
 
-    let session = RetroSession::try_from_slice(&session_info.data.borrow())?;
+    let session = RetroSession::deserialize(&mut &session_info.data.borrow()[..])?;
     if !session.is_initialized {
         return Err(RetroError::AccountNotInitialized.into());
     }
@@ -539,7 +539,7 @@ fn process_set_group_title(
         return Err(RetroError::GroupTitleTooLong.into());
     }
 
-    let mut group = Group::try_from_slice(&group_info.data.borrow())?;
+    let mut group = Group::deserialize(&mut &group_info.data.borrow()[..])?;
     if !group.is_initialized {
         return Err(RetroError::AccountNotInitialized.into());
     }
@@ -572,7 +572,7 @@ fn process_assign_note_to_group(
         return Err(RetroError::InvalidAccountOwner.into());
     }
 
-    let session = RetroSession::try_from_slice(&session_info.data.borrow())?;
+    let session = RetroSession::deserialize(&mut &session_info.data.borrow()[..])?;
     if !session.is_initialized {
         return Err(RetroError::AccountNotInitialized.into());
     }
@@ -588,12 +588,12 @@ fn process_assign_note_to_group(
         return Err(RetroError::NotOnAllowlist.into());
     }
 
-    let group = Group::try_from_slice(&group_info.data.borrow())?;
+    let group = Group::deserialize(&mut &group_info.data.borrow()[..])?;
     if !group.is_initialized {
         return Err(RetroError::AccountNotInitialized.into());
     }
 
-    let mut note = Note::try_from_slice(&note_info.data.borrow())?;
+    let mut note = Note::deserialize(&mut &note_info.data.borrow()[..])?;
     if !note.is_initialized {
         return Err(RetroError::AccountNotInitialized.into());
     }
@@ -627,7 +627,7 @@ fn process_unassign_note(
         return Err(RetroError::InvalidAccountOwner.into());
     }
 
-    let session = RetroSession::try_from_slice(&session_info.data.borrow())?;
+    let session = RetroSession::deserialize(&mut &session_info.data.borrow()[..])?;
     if !session.is_initialized {
         return Err(RetroError::AccountNotInitialized.into());
     }
@@ -643,7 +643,7 @@ fn process_unassign_note(
         return Err(RetroError::NotOnAllowlist.into());
     }
 
-    let mut note = Note::try_from_slice(&note_info.data.borrow())?;
+    let mut note = Note::deserialize(&mut &note_info.data.borrow()[..])?;
     if !note.is_initialized {
         return Err(RetroError::AccountNotInitialized.into());
     }
@@ -681,7 +681,7 @@ fn process_cast_vote(
         return Err(RetroError::InvalidAccountOwner.into());
     }
 
-    let session = RetroSession::try_from_slice(&session_info.data.borrow())?;
+    let session = RetroSession::deserialize(&mut &session_info.data.borrow()[..])?;
     if !session.is_initialized {
         return Err(RetroError::AccountNotInitialized.into());
     }
@@ -741,7 +741,7 @@ fn process_cast_vote(
             bump: participant_bump,
         }
     } else {
-        ParticipantEntry::try_from_slice(&participant_entry_info.data.borrow())?
+        ParticipantEntry::deserialize(&mut &participant_entry_info.data.borrow()[..])?
     };
 
     let total_credits_after = participant_entry.credits_spent
@@ -752,7 +752,7 @@ fn process_cast_vote(
         return Err(RetroError::InsufficientCredits.into());
     }
 
-    let mut group = Group::try_from_slice(&group_info.data.borrow())?;
+    let mut group = Group::deserialize(&mut &group_info.data.borrow()[..])?;
     if !group.is_initialized {
         return Err(RetroError::AccountNotInitialized.into());
     }
@@ -797,7 +797,7 @@ fn process_cast_vote(
             bump: vote_bump,
         }
     } else {
-        VoteRecord::try_from_slice(&vote_record_info.data.borrow())?
+        VoteRecord::deserialize(&mut &vote_record_info.data.borrow()[..])?
     };
 
     vote_record.credits_spent = vote_record.credits_spent
