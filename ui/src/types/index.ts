@@ -99,5 +99,5 @@ export interface GroupWithAddress {
 
 // Program ID (deployed on devnet)
 export const PROGRAM_ID = new PublicKey(
-  "5bsCkk8edJ7P7mFRjBy9kx2dg88oufae2nnpezitUcyC"
+  "4TC65BZXHNQibtPRfHwZSYVCqNQ61ehztE9oUbD8NetA"
 );

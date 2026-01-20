@@ -11,6 +11,8 @@ import {
   findGroupPda,
   findParticipantEntryPda,
   findVoteRecordPda,
+  findActionItemPda,
+  findVerificationVotePda,
 } from "./pda";
 
 // Instruction discriminators (must match instructions.rs)
@@ -24,6 +26,8 @@ const SET_GROUP_TITLE = 6;
 const ASSIGN_NOTE_TO_GROUP = 7;
 const UNASSIGN_NOTE = 8;
 const CAST_VOTE = 9;
+const CREATE_ACTION_ITEM = 10;
+const CAST_VERIFICATION_VOTE = 11;
 
 // Borsh schema definitions
 const createSessionSchema = {
@@ -77,6 +81,22 @@ const castVoteSchema = {
   struct: {
     group_id: "u64",
     credits_delta: "u8",
+  },
+};
+
+const createActionItemSchema = {
+  struct: {
+    description: "string",
+    owner: { array: { type: "u8", len: 32 } },
+    verifiers: { array: { type: { array: { type: "u8", len: 32 } } } },
+    threshold: "u8",
+  },
+};
+
+const castVerificationVoteSchema = {
+  struct: {
+    action_item_id: "u64",
+    approved: "bool",
   },
 };
 
@@ -314,3 +334,63 @@ export const SessionStage = {
   Vote: 3,
   Discuss: 4,
 } as const;
+
+export function createCreateActionItemInstruction(
+  session: PublicKey,
+  actionItem: PublicKey,
+  facilitator: PublicKey,
+  description: string,
+  owner: PublicKey,
+  verifiers: PublicKey[],
+  threshold: number,
+  programId: PublicKey
+): TransactionInstruction {
+  const payload = {
+    description,
+    owner: Array.from(owner.toBytes()),
+    verifiers: verifiers.map((pk) => Array.from(pk.toBytes())),
+    threshold,
+  };
+  const serialized = borsh.serialize(createActionItemSchema, payload);
+
+  return new TransactionInstruction({
+    keys: [
+      { pubkey: session, isSigner: false, isWritable: true },
+      { pubkey: actionItem, isSigner: false, isWritable: true },
+      { pubkey: facilitator, isSigner: true, isWritable: true },
+      { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+    ],
+    programId,
+    data: serializeInstruction(CREATE_ACTION_ITEM, Buffer.from(serialized)),
+  });
+}
+
+export function createCastVerificationVoteInstruction(
+  session: PublicKey,
+  actionItem: PublicKey,
+  verificationVote: PublicKey,
+  ownerMembership: PublicKey,
+  verifier: PublicKey,
+  actionItemId: bigint,
+  approved: boolean,
+  programId: PublicKey
+): TransactionInstruction {
+  const payload = {
+    action_item_id: actionItemId,
+    approved,
+  };
+  const serialized = borsh.serialize(castVerificationVoteSchema, payload);
+
+  return new TransactionInstruction({
+    keys: [
+      { pubkey: session, isSigner: false, isWritable: false },
+      { pubkey: actionItem, isSigner: false, isWritable: true },
+      { pubkey: verificationVote, isSigner: false, isWritable: true },
+      { pubkey: ownerMembership, isSigner: false, isWritable: true },
+      { pubkey: verifier, isSigner: true, isWritable: true },
+      { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+    ],
+    programId,
+    data: serializeInstruction(CAST_VERIFICATION_VOTE, Buffer.from(serialized)),
+  });
+}

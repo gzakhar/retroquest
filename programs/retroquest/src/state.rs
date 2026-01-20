@@ -8,6 +8,8 @@ pub const MAX_PARTICIPANTS: usize = 8;
 pub const MAX_CATEGORIES: usize = 5;
 pub const MAX_CATEGORY_NAME_LEN: usize = 32;
 pub const VOTING_CREDITS_DEFAULT: u8 = 5;
+pub const MAX_ACTION_DESCRIPTION_CHARS: usize = 280;
+pub const MAX_VERIFIERS: usize = 7; // MAX_PARTICIPANTS - 1 (owner can't verify)
 
 // PDA Seeds
 pub const FACILITATOR_REGISTRY_SEED: &[u8] = b"facilitator_registry";
@@ -16,6 +18,8 @@ pub const MEMBERSHIP_SEED: &[u8] = b"membership";
 pub const NOTE_SEED: &[u8] = b"note";
 pub const GROUP_SEED: &[u8] = b"group";
 pub const VOTE_SEED: &[u8] = b"vote";
+pub const ACTION_ITEM_SEED: &[u8] = b"action_item";
+pub const VERIFICATION_VOTE_SEED: &[u8] = b"verification_vote";
 
 #[derive(BorshSerialize, BorshDeserialize, Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
@@ -33,6 +37,13 @@ impl BoardStage {
         let target = next as u8;
         target == current + 1
     }
+}
+
+#[derive(BorshSerialize, BorshDeserialize, Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(u8)]
+pub enum ActionItemStatus {
+    Pending = 0,
+    Completed = 1,
 }
 
 /// FacilitatorRegistry tracks how many boards a facilitator has created.
@@ -62,6 +73,7 @@ pub struct RetroBoard {
     pub voting_credits_per_participant: u8,
     pub note_count: u64,
     pub group_count: u64,
+    pub action_item_count: u64,
     pub created_at_slot: u64,
     pub stage_changed_at_slot: u64,
     pub bump: u8,
@@ -71,8 +83,8 @@ impl RetroBoard {
     // Base size without dynamic Vecs
     // is_initialized(1) + facilitator(32) + board_index(8) +
     // stage(1) + closed(1) + voting_credits(1) +
-    // note_count(8) + group_count(8) + created_at_slot(8) + stage_changed_at_slot(8) + bump(1)
-    pub const BASE_LEN: usize = 1 + 32 + 8 + 1 + 1 + 1 + 8 + 8 + 8 + 8 + 1;
+    // note_count(8) + group_count(8) + action_item_count(8) + created_at_slot(8) + stage_changed_at_slot(8) + bump(1)
+    pub const BASE_LEN: usize = 1 + 32 + 8 + 1 + 1 + 1 + 8 + 8 + 8 + 8 + 8 + 1;
 
     // Categories: vec_len(4) + MAX_CATEGORIES * (str_len(4) + MAX_CATEGORY_NAME_LEN)
     pub const CATEGORIES_LEN: usize = 4 + (MAX_CATEGORIES * (4 + MAX_CATEGORY_NAME_LEN));
@@ -91,11 +103,12 @@ pub struct BoardMembership {
     pub board: Pubkey,
     pub participant: Pubkey,
     pub credits_spent: u8,
+    pub total_score: u64,
     pub bump: u8,
 }
 
 impl BoardMembership {
-    pub const LEN: usize = 1 + 32 + 32 + 1 + 1;
+    pub const LEN: usize = 1 + 32 + 32 + 1 + 8 + 1;
 }
 
 #[derive(BorshSerialize, BorshDeserialize, Debug, Clone)]
@@ -142,4 +155,46 @@ pub struct VoteRecord {
 
 impl VoteRecord {
     pub const LEN: usize = 1 + 32 + 32 + 8 + 1 + 1;
+}
+
+/// ActionItem represents a task committed to during a retrospective.
+/// Created during Discuss stage, verified after board is closed.
+#[derive(BorshSerialize, BorshDeserialize, Debug, Clone)]
+pub struct ActionItem {
+    pub is_initialized: bool,
+    pub board: Pubkey,
+    pub action_item_id: u64,
+    pub description: String,
+    pub owner: Pubkey,
+    pub verifiers: Vec<Pubkey>,
+    pub threshold: u8,
+    pub approvals: u8,
+    pub status: ActionItemStatus,
+    pub created_at_slot: u64,
+    pub verified_at_slot: Option<u64>,
+    pub bump: u8,
+}
+
+impl ActionItem {
+    // is_initialized(1) + board(32) + action_item_id(8) +
+    // description(4 + MAX_ACTION_DESCRIPTION_CHARS) + owner(32) +
+    // verifiers(4 + MAX_VERIFIERS * 32) + threshold(1) + approvals(1) +
+    // status(1) + created_at_slot(8) + verified_at_slot(1 + 8) + bump(1)
+    pub const MAX_LEN: usize = 1 + 32 + 8 + (4 + MAX_ACTION_DESCRIPTION_CHARS) + 32
+        + (4 + MAX_VERIFIERS * 32) + 1 + 1 + 1 + 8 + 9 + 1;
+}
+
+/// VerificationVote records a verifier's vote on an action item.
+#[derive(BorshSerialize, BorshDeserialize, Debug, Clone)]
+pub struct VerificationVote {
+    pub is_initialized: bool,
+    pub action_item: Pubkey,
+    pub verifier: Pubkey,
+    pub approved: bool,
+    pub voted_at_slot: u64,
+    pub bump: u8,
+}
+
+impl VerificationVote {
+    pub const LEN: usize = 1 + 32 + 32 + 1 + 8 + 1;
 }

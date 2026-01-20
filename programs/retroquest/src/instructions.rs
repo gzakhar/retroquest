@@ -3,6 +3,20 @@ use solana_program::{program_error::ProgramError, pubkey::Pubkey};
 
 use crate::state::BoardStage;
 
+// Instruction discriminators
+pub const INIT_FACILITATOR_REGISTRY: u8 = 0;
+pub const CREATE_BOARD: u8 = 1;
+pub const ADVANCE_STAGE: u8 = 2;
+pub const CLOSE_BOARD: u8 = 3;
+pub const CREATE_NOTE: u8 = 4;
+pub const CREATE_GROUP: u8 = 5;
+pub const SET_GROUP_TITLE: u8 = 6;
+pub const ASSIGN_NOTE_TO_GROUP: u8 = 7;
+pub const UNASSIGN_NOTE: u8 = 8;
+pub const CAST_VOTE: u8 = 9;
+pub const CREATE_ACTION_ITEM: u8 = 10;
+pub const CAST_VERIFICATION_VOTE: u8 = 11;
+
 #[derive(Debug)]
 pub enum RetroInstruction {
     /// Initialize a facilitator registry
@@ -85,6 +99,29 @@ pub enum RetroInstruction {
     /// 4. `[signer]` Voter
     /// 5. `[]` System program
     CastVote { group_id: u64, credits_delta: u8 },
+
+    /// Create an action item (facilitator only, Discuss stage)
+    /// Accounts:
+    /// 0. `[writable]` Board PDA
+    /// 1. `[writable]` ActionItem PDA
+    /// 2. `[signer]` Facilitator
+    /// 3. `[]` System program
+    CreateActionItem {
+        description: String,
+        owner: Pubkey,
+        verifiers: Vec<Pubkey>,
+        threshold: u8,
+    },
+
+    /// Cast a verification vote on an action item (board must be closed)
+    /// Accounts:
+    /// 0. `[]` Board PDA
+    /// 1. `[writable]` ActionItem PDA
+    /// 2. `[writable]` VerificationVote PDA
+    /// 3. `[writable]` Owner's BoardMembership PDA (for score update)
+    /// 4. `[signer]` Verifier
+    /// 5. `[]` System program
+    CastVerificationVote { action_item_id: u64, approved: bool },
 }
 
 // Instruction data payloads for Borsh deserialization
@@ -132,6 +169,20 @@ struct UnassignNotePayload {
 struct CastVotePayload {
     group_id: u64,
     credits_delta: u8,
+}
+
+#[derive(BorshDeserialize)]
+struct CreateActionItemPayload {
+    description: String,
+    owner: Pubkey,
+    verifiers: Vec<Pubkey>,
+    threshold: u8,
+}
+
+#[derive(BorshDeserialize)]
+struct CastVerificationVotePayload {
+    action_item_id: u64,
+    approved: bool,
 }
 
 impl RetroInstruction {
@@ -218,6 +269,26 @@ impl RetroInstruction {
                 Self::CastVote {
                     group_id: payload.group_id,
                     credits_delta: payload.credits_delta,
+                }
+            }
+
+            10 => {
+                let payload = CreateActionItemPayload::try_from_slice(rest)
+                    .map_err(|_| ProgramError::InvalidInstructionData)?;
+                Self::CreateActionItem {
+                    description: payload.description,
+                    owner: payload.owner,
+                    verifiers: payload.verifiers,
+                    threshold: payload.threshold,
+                }
+            }
+
+            11 => {
+                let payload = CastVerificationVotePayload::try_from_slice(rest)
+                    .map_err(|_| ProgramError::InvalidInstructionData)?;
+                Self::CastVerificationVote {
+                    action_item_id: payload.action_item_id,
+                    approved: payload.approved,
                 }
             }
 

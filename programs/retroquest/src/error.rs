@@ -62,6 +62,33 @@ pub enum RetroError {
 
     #[error("Invalid account owner")]
     InvalidAccountOwner,
+
+    #[error("Action item description exceeds maximum length")]
+    ActionDescriptionTooLong,
+
+    #[error("Too many verifiers specified")]
+    TooManyVerifiers,
+
+    #[error("Owner cannot be a verifier of their own action item")]
+    OwnerCannotVerify,
+
+    #[error("Verification threshold must be at least 1")]
+    ThresholdTooLow,
+
+    #[error("Verification threshold exceeds number of verifiers")]
+    ThresholdTooHigh,
+
+    #[error("Not a designated verifier for this action item")]
+    NotAVerifier,
+
+    #[error("Action item is not pending verification")]
+    ActionItemNotPending,
+
+    #[error("Already voted on this action item")]
+    AlreadyVoted,
+
+    #[error("Board must be closed before verification can occur")]
+    BoardNotClosed,
 }
 
 impl From<RetroError> for ProgramError {

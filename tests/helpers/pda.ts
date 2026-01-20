@@ -7,6 +7,8 @@ const PARTICIPANT_SEED = Buffer.from("participant");
 const NOTE_SEED = Buffer.from("note");
 const GROUP_SEED = Buffer.from("group");
 const VOTE_SEED = Buffer.from("vote");
+const ACTION_ITEM_SEED = Buffer.from("action_item");
+const VERIFICATION_VOTE_SEED = Buffer.from("verification_vote");
 
 export function findTeamRegistryPda(
   teamAuthority: PublicKey,
@@ -78,6 +80,30 @@ export function findVoteRecordPda(
   groupIdBuffer.writeBigUInt64LE(groupId);
   return PublicKey.findProgramAddressSync(
     [VOTE_SEED, session.toBuffer(), participant.toBuffer(), groupIdBuffer],
+    programId
+  );
+}
+
+export function findActionItemPda(
+  session: PublicKey,
+  actionItemId: bigint,
+  programId: PublicKey
+): [PublicKey, number] {
+  const actionItemIdBuffer = Buffer.alloc(8);
+  actionItemIdBuffer.writeBigUInt64LE(actionItemId);
+  return PublicKey.findProgramAddressSync(
+    [ACTION_ITEM_SEED, session.toBuffer(), actionItemIdBuffer],
+    programId
+  );
+}
+
+export function findVerificationVotePda(
+  actionItem: PublicKey,
+  verifier: PublicKey,
+  programId: PublicKey
+): [PublicKey, number] {
+  return PublicKey.findProgramAddressSync(
+    [VERIFICATION_VOTE_SEED, actionItem.toBuffer(), verifier.toBuffer()],
     programId
   );
 }

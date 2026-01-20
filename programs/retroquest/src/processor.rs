@@ -63,6 +63,16 @@ pub fn process_instruction(
         RetroInstruction::CastVote { group_id, credits_delta } => {
             process_cast_vote(program_id, accounts, group_id, credits_delta)
         }
+        RetroInstruction::CreateActionItem {
+            description,
+            owner,
+            verifiers,
+            threshold,
+        } => process_create_action_item(program_id, accounts, description, owner, verifiers, threshold),
+        RetroInstruction::CastVerificationVote {
+            action_item_id,
+            approved,
+        } => process_cast_verification_vote(program_id, accounts, action_item_id, approved),
     }
 }
 
@@ -219,6 +229,7 @@ fn process_create_board(
         voting_credits_per_participant: voting_credits_per_participant.unwrap_or(VOTING_CREDITS_DEFAULT),
         note_count: 0,
         group_count: 0,
+        action_item_count: 0,
         created_at_slot: clock.slot,
         stage_changed_at_slot: clock.slot,
         bump,
@@ -263,6 +274,7 @@ fn process_create_board(
             board: *board_info.key,
             participant: *participant_pubkey,
             credits_spent: 0,
+            total_score: 0,
             bump: membership_bump,
         };
         membership.serialize(&mut *membership_info.data.borrow_mut())?;
@@ -779,6 +791,7 @@ fn process_cast_vote(
             board: *board_info.key,
             participant: *voter_info.key,
             credits_spent: 0,
+            total_score: 0,
             bump: membership_bump,
         }
     } else {
@@ -853,6 +866,260 @@ fn process_cast_vote(
         .checked_add(credits_delta as u64)
         .ok_or(RetroError::InsufficientCredits)?;
     group.serialize(&mut *group_info.data.borrow_mut())?;
+
+    Ok(())
+}
+
+fn process_create_action_item(
+    program_id: &Pubkey,
+    accounts: &[AccountInfo],
+    description: String,
+    owner: Pubkey,
+    verifiers: Vec<Pubkey>,
+    threshold: u8,
+) -> ProgramResult {
+    msg!("Instruction: CreateActionItem");
+    let account_info_iter = &mut accounts.iter();
+
+    let board_info = next_account_info(account_info_iter)?;
+    let action_item_info = next_account_info(account_info_iter)?;
+    let facilitator_info = next_account_info(account_info_iter)?;
+    let system_program_info = next_account_info(account_info_iter)?;
+
+    if !facilitator_info.is_signer {
+        return Err(ProgramError::MissingRequiredSignature);
+    }
+
+    if board_info.owner != program_id {
+        return Err(RetroError::InvalidAccountOwner.into());
+    }
+
+    let mut board = RetroBoard::deserialize(&mut &board_info.data.borrow()[..])?;
+    if !board.is_initialized {
+        return Err(RetroError::AccountNotInitialized.into());
+    }
+    if board.closed {
+        return Err(RetroError::BoardClosed.into());
+    }
+    if board.stage != BoardStage::Discuss {
+        return Err(RetroError::InvalidStage.into());
+    }
+    if board.facilitator != *facilitator_info.key {
+        return Err(RetroError::UnauthorizedFacilitator.into());
+    }
+
+    // Validate description length
+    if description.len() > MAX_ACTION_DESCRIPTION_CHARS {
+        return Err(RetroError::ActionDescriptionTooLong.into());
+    }
+
+    // Validate verifiers count
+    if verifiers.len() > MAX_VERIFIERS {
+        return Err(RetroError::TooManyVerifiers.into());
+    }
+
+    // Validate threshold
+    if threshold == 0 {
+        return Err(RetroError::ThresholdTooLow.into());
+    }
+    if threshold as usize > verifiers.len() {
+        return Err(RetroError::ThresholdTooHigh.into());
+    }
+
+    // Validate owner is on allowlist
+    if !board.allowlist.contains(&owner) {
+        return Err(RetroError::NotOnAllowlist.into());
+    }
+
+    // Validate all verifiers are on allowlist and owner is not a verifier
+    for verifier in &verifiers {
+        if !board.allowlist.contains(verifier) {
+            return Err(RetroError::NotOnAllowlist.into());
+        }
+        if *verifier == owner {
+            return Err(RetroError::OwnerCannotVerify.into());
+        }
+    }
+
+    let action_item_id = board.action_item_count;
+    let (pda, bump) = Pubkey::find_program_address(
+        &[ACTION_ITEM_SEED, board_info.key.as_ref(), &action_item_id.to_le_bytes()],
+        program_id,
+    );
+
+    if pda != *action_item_info.key {
+        return Err(RetroError::InvalidPDA.into());
+    }
+
+    let rent = Rent::get()?;
+    let space = ActionItem::MAX_LEN;
+    let lamports = rent.minimum_balance(space);
+
+    invoke_signed(
+        &system_instruction::create_account(
+            facilitator_info.key,
+            action_item_info.key,
+            lamports,
+            space as u64,
+            program_id,
+        ),
+        &[
+            facilitator_info.clone(),
+            action_item_info.clone(),
+            system_program_info.clone(),
+        ],
+        &[&[ACTION_ITEM_SEED, board_info.key.as_ref(), &action_item_id.to_le_bytes(), &[bump]]],
+    )?;
+
+    let clock = Clock::get()?;
+    let action_item = ActionItem {
+        is_initialized: true,
+        board: *board_info.key,
+        action_item_id,
+        description,
+        owner,
+        verifiers,
+        threshold,
+        approvals: 0,
+        status: ActionItemStatus::Pending,
+        created_at_slot: clock.slot,
+        verified_at_slot: None,
+        bump,
+    };
+
+    action_item.serialize(&mut *action_item_info.data.borrow_mut())?;
+
+    board.action_item_count += 1;
+    board.serialize(&mut *board_info.data.borrow_mut())?;
+
+    Ok(())
+}
+
+fn process_cast_verification_vote(
+    program_id: &Pubkey,
+    accounts: &[AccountInfo],
+    _action_item_id: u64,
+    approved: bool,
+) -> ProgramResult {
+    msg!("Instruction: CastVerificationVote");
+    let account_info_iter = &mut accounts.iter();
+
+    let board_info = next_account_info(account_info_iter)?;
+    let action_item_info = next_account_info(account_info_iter)?;
+    let vote_info = next_account_info(account_info_iter)?;
+    let owner_membership_info = next_account_info(account_info_iter)?;
+    let verifier_info = next_account_info(account_info_iter)?;
+    let system_program_info = next_account_info(account_info_iter)?;
+
+    if !verifier_info.is_signer {
+        return Err(ProgramError::MissingRequiredSignature);
+    }
+
+    if board_info.owner != program_id {
+        return Err(RetroError::InvalidAccountOwner.into());
+    }
+
+    let board = RetroBoard::deserialize(&mut &board_info.data.borrow()[..])?;
+    if !board.is_initialized {
+        return Err(RetroError::AccountNotInitialized.into());
+    }
+    // Board must be closed for verification
+    if !board.closed {
+        return Err(RetroError::BoardNotClosed.into());
+    }
+
+    if action_item_info.owner != program_id {
+        return Err(RetroError::InvalidAccountOwner.into());
+    }
+
+    let mut action_item = ActionItem::deserialize(&mut &action_item_info.data.borrow()[..])?;
+    if !action_item.is_initialized {
+        return Err(RetroError::AccountNotInitialized.into());
+    }
+    if action_item.status != ActionItemStatus::Pending {
+        return Err(RetroError::ActionItemNotPending.into());
+    }
+
+    // Validate verifier is in the action item's verifiers list
+    if !action_item.verifiers.contains(verifier_info.key) {
+        return Err(RetroError::NotAVerifier.into());
+    }
+
+    // Verify vote PDA
+    let (vote_pda, vote_bump) = Pubkey::find_program_address(
+        &[VERIFICATION_VOTE_SEED, action_item_info.key.as_ref(), verifier_info.key.as_ref()],
+        program_id,
+    );
+
+    if vote_pda != *vote_info.key {
+        return Err(RetroError::InvalidPDA.into());
+    }
+
+    // Check vote doesn't already exist
+    if !vote_info.data_is_empty() {
+        return Err(RetroError::AlreadyVoted.into());
+    }
+
+    // Verify owner membership PDA
+    let (owner_membership_pda, _) = Pubkey::find_program_address(
+        &[MEMBERSHIP_SEED, board_info.key.as_ref(), action_item.owner.as_ref()],
+        program_id,
+    );
+
+    if owner_membership_pda != *owner_membership_info.key {
+        return Err(RetroError::InvalidPDA.into());
+    }
+
+    // Create the vote record
+    let rent = Rent::get()?;
+    let space = VerificationVote::LEN;
+    let lamports = rent.minimum_balance(space);
+
+    invoke_signed(
+        &system_instruction::create_account(
+            verifier_info.key,
+            vote_info.key,
+            lamports,
+            space as u64,
+            program_id,
+        ),
+        &[
+            verifier_info.clone(),
+            vote_info.clone(),
+            system_program_info.clone(),
+        ],
+        &[&[VERIFICATION_VOTE_SEED, action_item_info.key.as_ref(), verifier_info.key.as_ref(), &[vote_bump]]],
+    )?;
+
+    let clock = Clock::get()?;
+    let vote = VerificationVote {
+        is_initialized: true,
+        action_item: *action_item_info.key,
+        verifier: *verifier_info.key,
+        approved,
+        voted_at_slot: clock.slot,
+        bump: vote_bump,
+    };
+
+    vote.serialize(&mut *vote_info.data.borrow_mut())?;
+
+    // Update action item if approved
+    if approved {
+        action_item.approvals += 1;
+
+        // Check if threshold is met
+        if action_item.approvals >= action_item.threshold {
+            action_item.status = ActionItemStatus::Completed;
+            action_item.verified_at_slot = Some(clock.slot);
+
+            // Increment owner's score
+            let mut owner_membership = BoardMembership::deserialize(&mut &owner_membership_info.data.borrow()[..])?;
+            owner_membership.total_score += 1;
+            owner_membership.serialize(&mut *owner_membership_info.data.borrow_mut())?;
+        }
+    }
+
+    action_item.serialize(&mut *action_item_info.data.borrow_mut())?;
 
     Ok(())
 }
