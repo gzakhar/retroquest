@@ -21,7 +21,7 @@ export const BoardView: React.FC = () => {
   const { sendInstructions } = useProgram();
 
   const boardAddress = id ? new PublicKey(id) : null;
-  const { board, notes, groups, membership, loading, error, refresh } =
+  const { board, notes, groups, actionItems, membership, loading, error, refresh } =
     useBoard(boardAddress);
 
   const [advancing, setAdvancing] = React.useState(false);
@@ -121,6 +121,7 @@ export const BoardView: React.FC = () => {
       board,
       notes,
       groups,
+      actionItems,
       membership,
       boardAddress: boardAddress!,
       refresh,

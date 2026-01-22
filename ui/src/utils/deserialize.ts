@@ -7,7 +7,10 @@ import {
   Group,
   BoardMembership,
   VoteRecord,
+  ActionItem,
+  VerificationVote,
   BoardStage,
+  ActionItemStatus,
 } from "../types";
 
 // Helper to read PublicKey from buffer
@@ -107,6 +110,9 @@ export function deserializeBoard(data: Buffer): RetroBoard {
   const groupCount = readU64(data, offset);
   offset += 8;
 
+  const actionItemCount = readU64(data, offset);
+  offset += 8;
+
   const createdAtSlot = readU64(data, offset);
   offset += 8;
 
@@ -126,6 +132,7 @@ export function deserializeBoard(data: Buffer): RetroBoard {
     votingCreditsPerParticipant,
     noteCount,
     groupCount,
+    actionItemCount,
     createdAtSlot,
     stageChangedAtSlot,
     bump,
@@ -214,7 +221,8 @@ export function deserializeBoardMembership(data: Buffer): BoardMembership {
     board: readPublicKey(data, 1),
     participant: readPublicKey(data, 33),
     creditsSpent: data.readUInt8(65),
-    bump: data.readUInt8(66),
+    totalScore: readU64(data, 66),
+    bump: data.readUInt8(74),
   };
 }
 
@@ -225,6 +233,71 @@ export function deserializeVoteRecord(data: Buffer): VoteRecord {
     participant: readPublicKey(data, 33),
     groupId: readU64(data, 65),
     creditsSpent: data.readUInt8(73),
+    bump: data.readUInt8(74),
+  };
+}
+
+export function deserializeActionItem(data: Buffer): ActionItem {
+  let offset = 0;
+
+  const isInitialized = data.readUInt8(offset) === 1;
+  offset += 1;
+
+  const board = readPublicKey(data, offset);
+  offset += 32;
+
+  const actionItemId = readU64(data, offset);
+  offset += 8;
+
+  const [description, descriptionLen] = readString(data, offset);
+  offset += descriptionLen;
+
+  const owner = readPublicKey(data, offset);
+  offset += 32;
+
+  const [verifiers, verifiersLen] = readPubkeyVec(data, offset);
+  offset += verifiersLen;
+
+  const threshold = data.readUInt8(offset);
+  offset += 1;
+
+  const approvals = data.readUInt8(offset);
+  offset += 1;
+
+  const status = data.readUInt8(offset) as ActionItemStatus;
+  offset += 1;
+
+  const createdAtSlot = readU64(data, offset);
+  offset += 8;
+
+  const [verifiedAtSlot, verifiedAtSlotLen] = readOptionU64(data, offset);
+  offset += verifiedAtSlotLen;
+
+  const bump = data.readUInt8(offset);
+
+  return {
+    isInitialized,
+    board,
+    actionItemId,
+    description,
+    owner,
+    verifiers,
+    threshold,
+    approvals,
+    status,
+    createdAtSlot,
+    verifiedAtSlot,
+    bump,
+  };
+}
+
+export function deserializeVerificationVote(data: Buffer): VerificationVote {
+  return {
+    isInitialized: data.readUInt8(0) === 1,
+    actionItem: readPublicKey(data, 1),
+    verifier: readPublicKey(data, 33),
+    approved: data.readUInt8(65) === 1,
+    votedAtSlot: readU64(data, 66),
     bump: data.readUInt8(74),
   };
 }

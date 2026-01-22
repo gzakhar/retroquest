@@ -16,6 +16,8 @@ no-entrypoint = []
 solana-program = "2.0"
 borsh = "0.10"
 thiserror = "1.0"
+# Pin indexmap to version compatible with Solana's rustc 1.79
+indexmap = "=2.2.6"
 
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(target_os, values("solana"))'] }

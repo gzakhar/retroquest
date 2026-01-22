@@ -30,7 +30,7 @@ import {
 
 // Program ID (must match lib.rs)
 const PROGRAM_ID = new PublicKey(
-  "AHiDdpGftbt2mVBSeXKafgWVqTFaGtmnC2fMvXR3Uuph"
+  "E4AhDGeoqgj3CG7EJshac5KqNADwC5mhp9cMvagLTF6Q"
 );
 
 // Path to compiled program

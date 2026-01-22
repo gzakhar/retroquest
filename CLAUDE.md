@@ -72,7 +72,75 @@ RetroQuest consists of three main components:
 
 See the CLAUDE.md files in each directory for domain-specific guidance.
 
+## Program ID (Single Source of Truth)
+
+The Solana program ID is defined in `program-id.json` at the repository root. This is the authoritative source.
+
+**Current Program ID**: Check `program-id.json`
+
+To update the program ID across all files:
+```bash
+./scripts/update-program-id.sh <NEW_PROGRAM_ID>
+```
+
+This script updates:
+- `program-id.json` (source of truth)
+- `programs/retroquest/src/lib.rs` (Rust declare_id!)
+- `ui/src/types/index.ts` (React UI)
+- `ui/src/debug-participant-entry.ts`
+- `tests/bankrun.test.ts`
+- `tests/action-items.test.ts`
+- `programs/retroquest/CLAUDE.md`
+
+## Current Implementation Status
+
+### Retro Board Flow (Complete)
+The core retrospective flow is fully implemented:
+1. **Setup** - Facilitator creates board with categories and allowlist
+2. **WriteNotes** - Participants add notes to categories
+3. **GroupDuplicates** - Participants group similar notes
+4. **Vote** - Participants vote on groups (quadratic voting)
+5. **Discuss** - Review results and create action items
+
+### Action Items (Complete)
+Action items are the core value proposition. Implementation:
+- **Solana Program**: `ActionItem` and `VerificationVote` structs in `state.rs`
+- **Instructions**: `CreateActionItem` (facilitator only), `CastVerificationVote` (verifiers only when board closed)
+- **UI**: DiscussStage component handles creation and verification
+- **Flow**: Facilitator assigns owner + verifiers → Board closes → Verifiers approve/reject → Owner's score updates
+
+### Key Files for Action Items
+- `programs/retroquest/src/state.rs` - ActionItem, VerificationVote, ActionItemStatus
+- `programs/retroquest/src/processor.rs` - process_create_action_item, process_cast_verification_vote
+- `ui/src/components/stages/DiscussStage.tsx` - Action item creation form and verification UI
+- `ui/src/utils/instructions.ts` - createCreateActionItemInstruction, createCastVerificationVoteInstruction
+- `ui/src/types/index.ts` - TypeScript types for ActionItem, VerificationVote
+
 ## Common Commands
+
+Use the Makefile for common operations:
+
+```bash
+make help            # Show all available commands
+
+# Deployment
+make deploy-fresh    # Deploy NEW program (generates new keypair & address)
+make deploy-upgrade  # Upgrade EXISTING program (keeps same address)
+
+# Building
+make build           # Build Solana program (debug)
+make build-release   # Build Solana program (release)
+make ui-build        # Build React UI
+make ui-start        # Start React dev server
+
+# Testing & Info
+make test            # Run integration tests
+make lint            # Run linter
+make program-id      # Show current program ID
+make config          # Show Solana CLI config & balance
+```
+
+### Manual Commands (if needed)
 
 ```bash
 # Solana Program

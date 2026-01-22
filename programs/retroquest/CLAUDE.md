@@ -9,7 +9,7 @@ This is a **native Solana program** using the `solana-program` crate directly—
 - Explicit PDA derivation and verification
 - Hand-written instruction parsing via Borsh
 
-Program ID: `AHiDdpGftbt2mVBSeXKafgWVqTFaGtmnC2fMvXR3Uuph`
+Program ID: `E4AhDGeoqgj3CG7EJshac5KqNADwC5mhp9cMvagLTF6Q`
 
 ## File Structure
 
@@ -26,11 +26,13 @@ Program ID: `AHiDdpGftbt2mVBSeXKafgWVqTFaGtmnC2fMvXR3Uuph`
 | Account | Purpose |
 |---------|---------|
 | `FacilitatorRegistry` | Tracks board count per facilitator |
-| `RetroBoard` | Main board: stages, categories, allowlist, voting credits |
-| `BoardMembership` | Links participants to boards, tracks voting credits spent |
+| `RetroBoard` | Main board: stages, categories, allowlist, voting credits, action_item_count |
+| `BoardMembership` | Links participants to boards, tracks voting credits spent and total_score |
 | `Note` | Individual notes with category, content, optional group assignment |
 | `Group` | Groups of notes with vote tally |
 | `VoteRecord` | Per-participant, per-group vote tracking |
+| `ActionItem` | Task with owner, verifiers, threshold, approvals, status (Pending/Completed) |
+| `VerificationVote` | Records a verifier's approval/rejection of an action item |
 
 ## PDA Seeds
 
@@ -54,6 +56,12 @@ These are the canonical seed patterns. **The UI must match these exactly.**
 
 // Vote record
 ["vote", board_pubkey, participant_pubkey, group_id.to_le_bytes()]
+
+// Action item
+["action_item", board_pubkey, action_item_id.to_le_bytes()]
+
+// Verification vote
+["verification_vote", action_item_pubkey, verifier_pubkey]
 ```
 
 ## Board Stage Flow
@@ -73,6 +81,8 @@ MAX_PARTICIPANTS: 8
 MAX_CATEGORIES: 5
 MAX_CATEGORY_NAME_LEN: 32
 VOTING_CREDITS_DEFAULT: 5
+MAX_ACTION_DESCRIPTION_CHARS: 280
+MAX_VERIFIERS: 7  // MAX_PARTICIPANTS - 1 (owner can't verify)
 ```
 
 ## Development Conventions

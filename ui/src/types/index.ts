@@ -9,6 +9,12 @@ export enum BoardStage {
   Discuss = 4,
 }
 
+// Action item status matching Rust enum
+export enum ActionItemStatus {
+  Pending = 0,
+  Completed = 1,
+}
+
 export const STAGE_NAMES: Record<BoardStage, string> = {
   [BoardStage.Setup]: "Setup",
   [BoardStage.WriteNotes]: "Write Notes",
@@ -36,6 +42,7 @@ export interface RetroBoard {
   votingCreditsPerParticipant: number;
   noteCount: bigint;
   groupCount: bigint;
+  actionItemCount: bigint;
   createdAtSlot: bigint;
   stageChangedAtSlot: bigint;
   bump: number;
@@ -68,6 +75,7 @@ export interface BoardMembership {
   board: PublicKey;
   participant: PublicKey;
   creditsSpent: number;
+  totalScore: bigint;
   bump: number;
 }
 
@@ -77,6 +85,30 @@ export interface VoteRecord {
   participant: PublicKey;
   groupId: bigint;
   creditsSpent: number;
+  bump: number;
+}
+
+export interface ActionItem {
+  isInitialized: boolean;
+  board: PublicKey;
+  actionItemId: bigint;
+  description: string;
+  owner: PublicKey;
+  verifiers: PublicKey[];
+  threshold: number;
+  approvals: number;
+  status: ActionItemStatus;
+  createdAtSlot: bigint;
+  verifiedAtSlot: bigint | null;
+  bump: number;
+}
+
+export interface VerificationVote {
+  isInitialized: boolean;
+  actionItem: PublicKey;
+  verifier: PublicKey;
+  approved: boolean;
+  votedAtSlot: bigint;
   bump: number;
 }
 
@@ -97,7 +129,17 @@ export interface GroupWithAddress {
   notes: NoteWithAddress[];
 }
 
+export interface ActionItemWithAddress {
+  address: PublicKey;
+  data: ActionItem;
+}
+
+export interface VerificationVoteWithAddress {
+  address: PublicKey;
+  data: VerificationVote;
+}
+
 // Program ID (deployed on devnet)
 export const PROGRAM_ID = new PublicKey(
-  "4TC65BZXHNQibtPRfHwZSYVCqNQ61ehztE9oUbD8NetA"
+  "E4AhDGeoqgj3CG7EJshac5KqNADwC5mhp9cMvagLTF6Q"
 );

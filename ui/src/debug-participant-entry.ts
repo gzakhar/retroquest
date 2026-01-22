@@ -3,7 +3,7 @@
 
 import { Connection, PublicKey } from "@solana/web3.js";
 
-const PROGRAM_ID = new PublicKey("AHiDdpGftbt2mVBSeXKafgWVqTFaGtmnC2fMvXR3Uuph");
+const PROGRAM_ID = new PublicKey("E4AhDGeoqgj3CG7EJshac5KqNADwC5mhp9cMvagLTF6Q");
 const PARTICIPANT_SEED = Buffer.from("participant");
 
 const SESSION_ADDRESS = process.argv[2];

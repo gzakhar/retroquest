@@ -6,13 +6,15 @@ import {
   deserializeNote,
   deserializeGroup,
   deserializeBoardMembership,
+  deserializeActionItem,
 } from "../utils/deserialize";
-import { findNotePda, findGroupPda, findBoardMembershipPda } from "../utils/pda";
+import { findNotePda, findGroupPda, findBoardMembershipPda, findActionItemPda } from "../utils/pda";
 import {
   RetroBoard,
   NoteWithAddress,
   GroupWithAddress,
   BoardMembership,
+  ActionItemWithAddress,
   PROGRAM_ID,
 } from "../types";
 
@@ -20,6 +22,7 @@ interface BoardData {
   board: RetroBoard | null;
   notes: NoteWithAddress[];
   groups: GroupWithAddress[];
+  actionItems: ActionItemWithAddress[];
   membership: BoardMembership | null;
   loading: boolean;
   error: string | null;
@@ -31,6 +34,7 @@ export function useBoard(boardAddress: PublicKey | null): BoardData {
   const [board, setBoard] = useState<RetroBoard | null>(null);
   const [notes, setNotes] = useState<NoteWithAddress[]>([]);
   const [groups, setGroups] = useState<GroupWithAddress[]>([]);
+  const [actionItems, setActionItems] = useState<ActionItemWithAddress[]>([]);
   const [membership, setMembership] =
     useState<BoardMembership | null>(null);
   const [loading, setLoading] = useState(true);
@@ -119,6 +123,30 @@ export function useBoard(boardAddress: PublicKey | null): BoardData {
         setGroups([]);
       }
 
+      // Fetch all action items
+      const actionItemAddresses: PublicKey[] = [];
+      for (let i = 0n; i < boardData.actionItemCount; i++) {
+        const [actionItemPda] = findActionItemPda(boardAddress, i, PROGRAM_ID);
+        actionItemAddresses.push(actionItemPda);
+      }
+
+      if (actionItemAddresses.length > 0) {
+        const actionItemAccounts =
+          await connection.getMultipleAccountsInfo(actionItemAddresses);
+        const fetchedActionItems: ActionItemWithAddress[] = [];
+        actionItemAccounts.forEach((account, index) => {
+          if (account) {
+            fetchedActionItems.push({
+              address: actionItemAddresses[index],
+              data: deserializeActionItem(Buffer.from(account.data)),
+            });
+          }
+        });
+        setActionItems(fetchedActionItems);
+      } else {
+        setActionItems([]);
+      }
+
       // Fetch board membership if wallet connected
       if (publicKey) {
         const [membershipPda] = findBoardMembershipPda(
@@ -191,6 +219,7 @@ export function useBoard(boardAddress: PublicKey | null): BoardData {
     board,
     notes,
     groups,
+    actionItems,
     membership,
     loading,
     error,

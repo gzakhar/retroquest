@@ -33,6 +33,8 @@ Seeds to match (see `programs/retroquest/CLAUDE.md` for canonical definitions):
 - `note`
 - `group`
 - `vote`
+- `action_item`
+- `verification_vote`
 
 When debugging PDA issues, verify:
 1. Seed strings are identical (case-sensitive)
