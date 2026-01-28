@@ -58,6 +58,8 @@ When making decisions, ask: **Does this improve follow-through on action items?*
 - Default to choices that increase the likelihood action items are remembered, tracked, and completed across sprints
 - Acknowledge this is early-stage—details will evolve, but never lose sight of why RetroQuest exists
 
+**Prefer generalization**: When building a feature, ask: "Could this be useful beyond RetroQuest?" If yes, design it as a standalone, reusable component first (e.g., a separate crate in `crates/`), then integrate it. This creates cleaner separation of concerns and potentially reusable infrastructure. Example: `crates/session-keys/` is a generic session key library that RetroQuest happens to use.
+
 ---
 
 ## Project Structure

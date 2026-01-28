@@ -4,6 +4,7 @@ import { useWallet } from "@solana/wallet-adapter-react";
 import { PublicKey } from "@solana/web3.js";
 import { Buffer } from "buffer";
 import { useProgram } from "../hooks/useProgram";
+import { useSession } from "../contexts/SessionContext";
 import {
   createInitFacilitatorRegistryInstruction,
   createCreateBoardInstruction,
@@ -16,7 +17,8 @@ import { deserializeFacilitatorRegistry } from "../utils/deserialize";
 export const CreateBoard: React.FC = () => {
   const navigate = useNavigate();
   const { connected, publicKey } = useWallet();
-  const { sendInstructions, getAccountInfo, programId } = useProgram();
+  const { sendInstructions, sendInstructionsWithSession, getAccountInfo, programId } = useProgram();
+  const { canSign, getSessionSigner, getSessionTokenAddress } = useSession();
 
   const [categories, setCategories] = useState<string[]>([
     "What went well",
@@ -75,9 +77,11 @@ export const CreateBoard: React.FC = () => {
       const facilitatorRegistryAccount = await getAccountInfo(facilitatorRegistryPda);
 
       let boardIndex = 0n;
+      let needsRegistryInit = false;
 
       if (!facilitatorRegistryAccount) {
         // Create facilitator registry first
+        needsRegistryInit = true;
         instructions.push(
           createInitFacilitatorRegistryInstruction(publicKey, programId)
         );
@@ -88,7 +92,7 @@ export const CreateBoard: React.FC = () => {
         boardIndex = facilitatorRegistry.boardCount;
       }
 
-      // Create board
+      // Create board - use session signing if available and registry already exists
       const [boardPda] = findBoardPda(publicKey, boardIndex, programId);
       const allowlistPubkeys = allowlist.map((a) => new PublicKey(a));
 
@@ -98,20 +102,44 @@ export const CreateBoard: React.FC = () => {
         return pda;
       });
 
-      instructions.push(
-        createCreateBoardInstruction(
-          facilitatorRegistryPda,
-          boardPda,
-          publicKey,
-          categories,
-          allowlistPubkeys,
-          votingCredits,
-          membershipPdas,
-          programId
-        )
-      );
+      // Use session signing only if registry exists (to avoid mixing session and wallet signing)
+      if (canSign() && !needsRegistryInit) {
+        const sessionSigner = getSessionSigner()!;
+        const sessionToken = getSessionTokenAddress()!;
 
-      await sendInstructions(instructions);
+        instructions.push(
+          createCreateBoardInstruction(
+            facilitatorRegistryPda,
+            boardPda,
+            sessionSigner.publicKey,
+            categories,
+            allowlistPubkeys,
+            votingCredits,
+            membershipPdas,
+            programId,
+            sessionToken
+          )
+        );
+
+        await sendInstructionsWithSession(instructions, sessionSigner, {
+          fallbackToWallet: true,
+        });
+      } else {
+        instructions.push(
+          createCreateBoardInstruction(
+            facilitatorRegistryPda,
+            boardPda,
+            publicKey,
+            categories,
+            allowlistPubkeys,
+            votingCredits,
+            membershipPdas,
+            programId
+          )
+        );
+
+        await sendInstructions(instructions);
+      }
 
       // Navigate to the new board
       navigate(`/board/${boardPda.toString()}`);

@@ -10,6 +10,7 @@ const GROUP_SEED = Buffer.from("group");
 const VOTE_SEED = Buffer.from("vote");
 const ACTION_ITEM_SEED = Buffer.from("action_item");
 const VERIFICATION_VOTE_SEED = Buffer.from("verification_vote");
+const SESSION_TOKEN_SEED = Buffer.from("session_token");
 
 export function findFacilitatorRegistryPda(
   facilitator: PublicKey,
@@ -105,6 +106,25 @@ export function findVerificationVotePda(
 ): [PublicKey, number] {
   return PublicKey.findProgramAddressSync(
     [VERIFICATION_VOTE_SEED, actionItem.toBuffer(), verifier.toBuffer()],
+    programId
+  );
+}
+
+// Session token PDA
+// Seeds: ["session_token", target_program, session_signer, authority]
+export function findSessionTokenPda(
+  targetProgram: PublicKey,
+  sessionSigner: PublicKey,
+  authority: PublicKey,
+  programId: PublicKey
+): [PublicKey, number] {
+  return PublicKey.findProgramAddressSync(
+    [
+      SESSION_TOKEN_SEED,
+      targetProgram.toBuffer(),
+      sessionSigner.toBuffer(),
+      authority.toBuffer(),
+    ],
     programId
   );
 }

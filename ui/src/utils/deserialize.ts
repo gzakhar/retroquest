@@ -9,6 +9,7 @@ import {
   VoteRecord,
   ActionItem,
   VerificationVote,
+  SessionToken,
   BoardStage,
   ActionItemStatus,
 } from "../types";
@@ -299,5 +300,19 @@ export function deserializeVerificationVote(data: Buffer): VerificationVote {
     approved: data.readUInt8(65) === 1,
     votedAtSlot: readU64(data, 66),
     bump: data.readUInt8(74),
+  };
+}
+
+// Session token layout (104 bytes):
+// authority: 32 bytes
+// target_program: 32 bytes
+// session_signer: 32 bytes
+// valid_until: 8 bytes (i64)
+export function deserializeSessionToken(data: Buffer): SessionToken {
+  return {
+    authority: readPublicKey(data, 0),
+    targetProgram: readPublicKey(data, 32),
+    sessionSigner: readPublicKey(data, 64),
+    validUntil: BigInt(data.readBigInt64LE(96)),
   };
 }

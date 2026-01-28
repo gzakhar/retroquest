@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { PublicKey } from "@solana/web3.js";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useProgram } from "../../hooks/useProgram";
+import { useSession } from "../../contexts/SessionContext";
 import {
   createCastVoteInstruction,
   findGroupPda,
@@ -37,7 +38,8 @@ export const VoteStage: React.FC<Props> = ({
   isOnAllowlist,
 }) => {
   const { publicKey } = useWallet();
-  const { sendInstructions } = useProgram();
+  const { sendInstructions, sendInstructionsWithSession } = useProgram();
+  const { canSign, getSessionSigner, getSessionTokenAddress } = useSession();
   const [voting, setVoting] = useState<bigint | null>(null);
 
   const creditsSpent = membership?.creditsSpent || 0;
@@ -48,6 +50,7 @@ export const VoteStage: React.FC<Props> = ({
 
     try {
       setVoting(groupId);
+      // PDAs are always derived from the authority (real wallet), not session signer
       const [boardMembershipPda] = findBoardMembershipPda(
         boardAddress,
         publicKey,
@@ -61,17 +64,38 @@ export const VoteStage: React.FC<Props> = ({
         PROGRAM_ID
       );
 
-      const instruction = createCastVoteInstruction(
-        boardAddress,
-        boardMembershipPda,
-        groupPda,
-        voteRecordPda,
-        publicKey,
-        groupId,
-        credits,
-        PROGRAM_ID
-      );
-      await sendInstructions([instruction]);
+      if (canSign()) {
+        const sessionSigner = getSessionSigner()!;
+        const sessionToken = getSessionTokenAddress()!;
+
+        const instruction = createCastVoteInstruction(
+          boardAddress,
+          boardMembershipPda,
+          groupPda,
+          voteRecordPda,
+          sessionSigner.publicKey,
+          groupId,
+          credits,
+          PROGRAM_ID,
+          sessionToken
+        );
+        await sendInstructionsWithSession([instruction], sessionSigner, {
+          fallbackToWallet: true,
+        });
+      } else {
+        const instruction = createCastVoteInstruction(
+          boardAddress,
+          boardMembershipPda,
+          groupPda,
+          voteRecordPda,
+          publicKey,
+          groupId,
+          credits,
+          PROGRAM_ID
+        );
+        await sendInstructions([instruction]);
+      }
+
       await refresh();
     } catch (err) {
       console.error("Error voting:", err);

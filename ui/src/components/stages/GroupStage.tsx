@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { PublicKey } from "@solana/web3.js";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useProgram } from "../../hooks/useProgram";
+import { useSession } from "../../contexts/SessionContext";
 import {
   createCreateGroupInstruction,
   createAssignNoteToGroupInstruction,
@@ -38,7 +39,8 @@ export const GroupStage: React.FC<Props> = ({
   isOnAllowlist,
 }) => {
   const { publicKey } = useWallet();
-  const { sendInstructions } = useProgram();
+  const { sendInstructions, sendInstructionsWithSession } = useProgram();
+  const { canSign, getSessionSigner, getSessionTokenAddress } = useSession();
   const [newGroupTitle, setNewGroupTitle] = useState("");
   const [creating, setCreating] = useState(false);
   const [selectedNote, setSelectedNote] = useState<NoteWithAddress | null>(null);
@@ -49,14 +51,33 @@ export const GroupStage: React.FC<Props> = ({
     try {
       setCreating(true);
       const [groupPda] = findGroupPda(boardAddress, board.groupCount, PROGRAM_ID);
-      const instruction = createCreateGroupInstruction(
-        boardAddress,
-        groupPda,
-        publicKey,
-        newGroupTitle.trim(),
-        PROGRAM_ID
-      );
-      await sendInstructions([instruction]);
+
+      if (canSign()) {
+        const sessionSigner = getSessionSigner()!;
+        const sessionToken = getSessionTokenAddress()!;
+
+        const instruction = createCreateGroupInstruction(
+          boardAddress,
+          groupPda,
+          sessionSigner.publicKey,
+          newGroupTitle.trim(),
+          PROGRAM_ID,
+          sessionToken
+        );
+        await sendInstructionsWithSession([instruction], sessionSigner, {
+          fallbackToWallet: true,
+        });
+      } else {
+        const instruction = createCreateGroupInstruction(
+          boardAddress,
+          groupPda,
+          publicKey,
+          newGroupTitle.trim(),
+          PROGRAM_ID
+        );
+        await sendInstructions([instruction]);
+      }
+
       setNewGroupTitle("");
       await refresh();
     } catch (err) {
@@ -72,16 +93,37 @@ export const GroupStage: React.FC<Props> = ({
     try {
       const [notePda] = findNotePda(boardAddress, noteId, PROGRAM_ID);
       const [groupPda] = findGroupPda(boardAddress, groupId, PROGRAM_ID);
-      const instruction = createAssignNoteToGroupInstruction(
-        boardAddress,
-        notePda,
-        groupPda,
-        publicKey,
-        noteId,
-        groupId,
-        PROGRAM_ID
-      );
-      await sendInstructions([instruction]);
+
+      if (canSign()) {
+        const sessionSigner = getSessionSigner()!;
+        const sessionToken = getSessionTokenAddress()!;
+
+        const instruction = createAssignNoteToGroupInstruction(
+          boardAddress,
+          notePda,
+          groupPda,
+          sessionSigner.publicKey,
+          noteId,
+          groupId,
+          PROGRAM_ID,
+          sessionToken
+        );
+        await sendInstructionsWithSession([instruction], sessionSigner, {
+          fallbackToWallet: true,
+        });
+      } else {
+        const instruction = createAssignNoteToGroupInstruction(
+          boardAddress,
+          notePda,
+          groupPda,
+          publicKey,
+          noteId,
+          groupId,
+          PROGRAM_ID
+        );
+        await sendInstructions([instruction]);
+      }
+
       setSelectedNote(null);
       await refresh();
     } catch (err) {
@@ -94,14 +136,33 @@ export const GroupStage: React.FC<Props> = ({
 
     try {
       const [notePda] = findNotePda(boardAddress, noteId, PROGRAM_ID);
-      const instruction = createUnassignNoteInstruction(
-        boardAddress,
-        notePda,
-        publicKey,
-        noteId,
-        PROGRAM_ID
-      );
-      await sendInstructions([instruction]);
+
+      if (canSign()) {
+        const sessionSigner = getSessionSigner()!;
+        const sessionToken = getSessionTokenAddress()!;
+
+        const instruction = createUnassignNoteInstruction(
+          boardAddress,
+          notePda,
+          sessionSigner.publicKey,
+          noteId,
+          PROGRAM_ID,
+          sessionToken
+        );
+        await sendInstructionsWithSession([instruction], sessionSigner, {
+          fallbackToWallet: true,
+        });
+      } else {
+        const instruction = createUnassignNoteInstruction(
+          boardAddress,
+          notePda,
+          publicKey,
+          noteId,
+          PROGRAM_ID
+        );
+        await sendInstructions([instruction]);
+      }
+
       await refresh();
     } catch (err) {
       console.error("Error unassigning note:", err);

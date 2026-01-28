@@ -14,6 +14,7 @@ import {
   findVoteRecordPda,
   findActionItemPda,
   findVerificationVotePda,
+  findSessionTokenPda,
 } from "./pda";
 
 // Instruction discriminators (must match instructions.rs)
@@ -29,6 +30,8 @@ const UNASSIGN_NOTE = 8;
 const CAST_VOTE = 9;
 const CREATE_ACTION_ITEM = 10;
 const CAST_VERIFICATION_VOTE = 11;
+const CREATE_SESSION = 12;
+const REVOKE_SESSION = 13;
 
 // Borsh schema definitions
 const createBoardSchema = {
@@ -101,6 +104,13 @@ const castVerificationVoteSchema = {
   },
 };
 
+const createSessionSchema = {
+  struct: {
+    valid_until: "i64",
+    top_up_lamports: { option: "u64" },
+  },
+};
+
 function serializeInstruction(discriminator: number, payload?: Buffer): Buffer {
   if (payload) {
     return Buffer.concat([Buffer.from([discriminator]), payload]);
@@ -128,12 +138,13 @@ export function createInitFacilitatorRegistryInstruction(
 export function createCreateBoardInstruction(
   facilitatorRegistry: PublicKey,
   board: PublicKey,
-  facilitator: PublicKey,
+  signer: PublicKey,
   categories: string[],
   allowlist: PublicKey[],
   votingCreditsPerParticipant: number | null,
   membershipAccounts: PublicKey[],
-  programId: PublicKey
+  programId: PublicKey,
+  sessionToken?: PublicKey
 ): TransactionInstruction {
   const payload = {
     categories,
@@ -143,19 +154,25 @@ export function createCreateBoardInstruction(
 
   const serialized = borsh.serialize(createBoardSchema as any, payload);
 
+  const keys = [
+    { pubkey: facilitatorRegistry, isSigner: false, isWritable: true },
+    { pubkey: board, isSigner: false, isWritable: true },
+    { pubkey: signer, isSigner: true, isWritable: true },
+    { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+  ];
+
+  // Session token comes after system_program but before membership accounts
+  if (sessionToken) {
+    keys.push({ pubkey: sessionToken, isSigner: false, isWritable: false });
+  }
+
+  // BoardMembership accounts for each allowlist member (enables board discovery)
+  for (const ma of membershipAccounts) {
+    keys.push({ pubkey: ma, isSigner: false, isWritable: true });
+  }
+
   return new TransactionInstruction({
-    keys: [
-      { pubkey: facilitatorRegistry, isSigner: false, isWritable: true },
-      { pubkey: board, isSigner: false, isWritable: true },
-      { pubkey: facilitator, isSigner: true, isWritable: true },
-      { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
-      // BoardMembership accounts for each allowlist member (enables board discovery)
-      ...membershipAccounts.map((ma) => ({
-        pubkey: ma,
-        isSigner: false,
-        isWritable: true,
-      })),
-    ],
+    keys,
     programId,
     data: serializeInstruction(CREATE_BOARD, Buffer.from(serialized)),
   });
@@ -163,18 +180,25 @@ export function createCreateBoardInstruction(
 
 export function createAdvanceStageInstruction(
   board: PublicKey,
-  facilitator: PublicKey,
+  signer: PublicKey,
   newStage: number,
-  programId: PublicKey
+  programId: PublicKey,
+  sessionToken?: PublicKey
 ): TransactionInstruction {
   const payload = { new_stage: newStage };
   const serialized = borsh.serialize(advanceStageSchema as any, payload);
 
+  const keys = [
+    { pubkey: board, isSigner: false, isWritable: true },
+    { pubkey: signer, isSigner: true, isWritable: false },
+  ];
+
+  if (sessionToken) {
+    keys.push({ pubkey: sessionToken, isSigner: false, isWritable: false });
+  }
+
   return new TransactionInstruction({
-    keys: [
-      { pubkey: board, isSigner: false, isWritable: true },
-      { pubkey: facilitator, isSigner: true, isWritable: false },
-    ],
+    keys,
     programId,
     data: serializeInstruction(ADVANCE_STAGE, Buffer.from(serialized)),
   });
@@ -182,14 +206,21 @@ export function createAdvanceStageInstruction(
 
 export function createCloseBoardInstruction(
   board: PublicKey,
-  facilitator: PublicKey,
-  programId: PublicKey
+  signer: PublicKey,
+  programId: PublicKey,
+  sessionToken?: PublicKey
 ): TransactionInstruction {
+  const keys = [
+    { pubkey: board, isSigner: false, isWritable: true },
+    { pubkey: signer, isSigner: true, isWritable: false },
+  ];
+
+  if (sessionToken) {
+    keys.push({ pubkey: sessionToken, isSigner: false, isWritable: false });
+  }
+
   return new TransactionInstruction({
-    keys: [
-      { pubkey: board, isSigner: false, isWritable: true },
-      { pubkey: facilitator, isSigner: true, isWritable: false },
-    ],
+    keys,
     programId,
     data: serializeInstruction(CLOSE_BOARD),
   });
@@ -198,21 +229,28 @@ export function createCloseBoardInstruction(
 export function createCreateNoteInstruction(
   board: PublicKey,
   note: PublicKey,
-  author: PublicKey,
+  signer: PublicKey,
   categoryId: number,
   content: string,
-  programId: PublicKey
+  programId: PublicKey,
+  sessionToken?: PublicKey
 ): TransactionInstruction {
   const payload = { category_id: categoryId, content };
   const serialized = borsh.serialize(createNoteSchema as any, payload);
 
+  const keys = [
+    { pubkey: board, isSigner: false, isWritable: true },
+    { pubkey: note, isSigner: false, isWritable: true },
+    { pubkey: signer, isSigner: true, isWritable: true },
+    { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+  ];
+
+  if (sessionToken) {
+    keys.push({ pubkey: sessionToken, isSigner: false, isWritable: false });
+  }
+
   return new TransactionInstruction({
-    keys: [
-      { pubkey: board, isSigner: false, isWritable: true },
-      { pubkey: note, isSigner: false, isWritable: true },
-      { pubkey: author, isSigner: true, isWritable: true },
-      { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
-    ],
+    keys,
     programId,
     data: serializeInstruction(CREATE_NOTE, Buffer.from(serialized)),
   });
@@ -221,20 +259,27 @@ export function createCreateNoteInstruction(
 export function createCreateGroupInstruction(
   board: PublicKey,
   group: PublicKey,
-  creator: PublicKey,
+  signer: PublicKey,
   title: string,
-  programId: PublicKey
+  programId: PublicKey,
+  sessionToken?: PublicKey
 ): TransactionInstruction {
   const payload = { title };
   const serialized = borsh.serialize(createGroupSchema as any, payload);
 
+  const keys = [
+    { pubkey: board, isSigner: false, isWritable: true },
+    { pubkey: group, isSigner: false, isWritable: true },
+    { pubkey: signer, isSigner: true, isWritable: true },
+    { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+  ];
+
+  if (sessionToken) {
+    keys.push({ pubkey: sessionToken, isSigner: false, isWritable: false });
+  }
+
   return new TransactionInstruction({
-    keys: [
-      { pubkey: board, isSigner: false, isWritable: true },
-      { pubkey: group, isSigner: false, isWritable: true },
-      { pubkey: creator, isSigner: true, isWritable: true },
-      { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
-    ],
+    keys,
     programId,
     data: serializeInstruction(CREATE_GROUP, Buffer.from(serialized)),
   });
@@ -243,20 +288,27 @@ export function createCreateGroupInstruction(
 export function createSetGroupTitleInstruction(
   board: PublicKey,
   group: PublicKey,
-  participant: PublicKey,
+  signer: PublicKey,
   groupId: bigint,
   title: string,
-  programId: PublicKey
+  programId: PublicKey,
+  sessionToken?: PublicKey
 ): TransactionInstruction {
   const payload = { group_id: groupId, title };
   const serialized = borsh.serialize(setGroupTitleSchema as any, payload);
 
+  const keys = [
+    { pubkey: board, isSigner: false, isWritable: false },
+    { pubkey: group, isSigner: false, isWritable: true },
+    { pubkey: signer, isSigner: true, isWritable: false },
+  ];
+
+  if (sessionToken) {
+    keys.push({ pubkey: sessionToken, isSigner: false, isWritable: false });
+  }
+
   return new TransactionInstruction({
-    keys: [
-      { pubkey: board, isSigner: false, isWritable: false },
-      { pubkey: group, isSigner: false, isWritable: true },
-      { pubkey: participant, isSigner: true, isWritable: false },
-    ],
+    keys,
     programId,
     data: serializeInstruction(SET_GROUP_TITLE, Buffer.from(serialized)),
   });
@@ -266,21 +318,28 @@ export function createAssignNoteToGroupInstruction(
   board: PublicKey,
   note: PublicKey,
   group: PublicKey,
-  participant: PublicKey,
+  signer: PublicKey,
   noteId: bigint,
   groupId: bigint,
-  programId: PublicKey
+  programId: PublicKey,
+  sessionToken?: PublicKey
 ): TransactionInstruction {
   const payload = { note_id: noteId, group_id: groupId };
   const serialized = borsh.serialize(assignNoteSchema as any, payload);
 
+  const keys = [
+    { pubkey: board, isSigner: false, isWritable: false },
+    { pubkey: note, isSigner: false, isWritable: true },
+    { pubkey: group, isSigner: false, isWritable: false },
+    { pubkey: signer, isSigner: true, isWritable: false },
+  ];
+
+  if (sessionToken) {
+    keys.push({ pubkey: sessionToken, isSigner: false, isWritable: false });
+  }
+
   return new TransactionInstruction({
-    keys: [
-      { pubkey: board, isSigner: false, isWritable: false },
-      { pubkey: note, isSigner: false, isWritable: true },
-      { pubkey: group, isSigner: false, isWritable: false },
-      { pubkey: participant, isSigner: true, isWritable: false },
-    ],
+    keys,
     programId,
     data: serializeInstruction(ASSIGN_NOTE_TO_GROUP, Buffer.from(serialized)),
   });
@@ -289,19 +348,26 @@ export function createAssignNoteToGroupInstruction(
 export function createUnassignNoteInstruction(
   board: PublicKey,
   note: PublicKey,
-  participant: PublicKey,
+  signer: PublicKey,
   noteId: bigint,
-  programId: PublicKey
+  programId: PublicKey,
+  sessionToken?: PublicKey
 ): TransactionInstruction {
   const payload = { note_id: noteId };
   const serialized = borsh.serialize(unassignNoteSchema as any, payload);
 
+  const keys = [
+    { pubkey: board, isSigner: false, isWritable: false },
+    { pubkey: note, isSigner: false, isWritable: true },
+    { pubkey: signer, isSigner: true, isWritable: false },
+  ];
+
+  if (sessionToken) {
+    keys.push({ pubkey: sessionToken, isSigner: false, isWritable: false });
+  }
+
   return new TransactionInstruction({
-    keys: [
-      { pubkey: board, isSigner: false, isWritable: false },
-      { pubkey: note, isSigner: false, isWritable: true },
-      { pubkey: participant, isSigner: true, isWritable: false },
-    ],
+    keys,
     programId,
     data: serializeInstruction(UNASSIGN_NOTE, Buffer.from(serialized)),
   });
@@ -312,23 +378,30 @@ export function createCastVoteInstruction(
   boardMembership: PublicKey,
   group: PublicKey,
   voteRecord: PublicKey,
-  voter: PublicKey,
+  signer: PublicKey,
   groupId: bigint,
   creditsDelta: number,
-  programId: PublicKey
+  programId: PublicKey,
+  sessionToken?: PublicKey
 ): TransactionInstruction {
   const payload = { group_id: groupId, credits_delta: creditsDelta };
   const serialized = borsh.serialize(castVoteSchema as any, payload);
 
+  const keys = [
+    { pubkey: board, isSigner: false, isWritable: false },
+    { pubkey: boardMembership, isSigner: false, isWritable: true },
+    { pubkey: group, isSigner: false, isWritable: true },
+    { pubkey: voteRecord, isSigner: false, isWritable: true },
+    { pubkey: signer, isSigner: true, isWritable: true },
+    { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+  ];
+
+  if (sessionToken) {
+    keys.push({ pubkey: sessionToken, isSigner: false, isWritable: false });
+  }
+
   return new TransactionInstruction({
-    keys: [
-      { pubkey: board, isSigner: false, isWritable: false },
-      { pubkey: boardMembership, isSigner: false, isWritable: true },
-      { pubkey: group, isSigner: false, isWritable: true },
-      { pubkey: voteRecord, isSigner: false, isWritable: true },
-      { pubkey: voter, isSigner: true, isWritable: true },
-      { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
-    ],
+    keys,
     programId,
     data: serializeInstruction(CAST_VOTE, Buffer.from(serialized)),
   });
@@ -337,12 +410,13 @@ export function createCastVoteInstruction(
 export function createCreateActionItemInstruction(
   board: PublicKey,
   actionItem: PublicKey,
-  facilitator: PublicKey,
+  signer: PublicKey,
   description: string,
   owner: PublicKey,
   verifiers: PublicKey[],
   threshold: number,
-  programId: PublicKey
+  programId: PublicKey,
+  sessionToken?: PublicKey
 ): TransactionInstruction {
   const payload = {
     description,
@@ -352,13 +426,19 @@ export function createCreateActionItemInstruction(
   };
   const serialized = borsh.serialize(createActionItemSchema as any, payload);
 
+  const keys = [
+    { pubkey: board, isSigner: false, isWritable: true },
+    { pubkey: actionItem, isSigner: false, isWritable: true },
+    { pubkey: signer, isSigner: true, isWritable: true },
+    { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+  ];
+
+  if (sessionToken) {
+    keys.push({ pubkey: sessionToken, isSigner: false, isWritable: false });
+  }
+
   return new TransactionInstruction({
-    keys: [
-      { pubkey: board, isSigner: false, isWritable: true },
-      { pubkey: actionItem, isSigner: false, isWritable: true },
-      { pubkey: facilitator, isSigner: true, isWritable: true },
-      { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
-    ],
+    keys,
     programId,
     data: serializeInstruction(CREATE_ACTION_ITEM, Buffer.from(serialized)),
   });
@@ -369,25 +449,75 @@ export function createCastVerificationVoteInstruction(
   actionItem: PublicKey,
   verificationVote: PublicKey,
   ownerMembership: PublicKey,
-  verifier: PublicKey,
+  signer: PublicKey,
   actionItemId: bigint,
   approved: boolean,
-  programId: PublicKey
+  programId: PublicKey,
+  sessionToken?: PublicKey
 ): TransactionInstruction {
   const payload = { action_item_id: actionItemId, approved };
   const serialized = borsh.serialize(castVerificationVoteSchema as any, payload);
 
+  const keys = [
+    { pubkey: board, isSigner: false, isWritable: false },
+    { pubkey: actionItem, isSigner: false, isWritable: true },
+    { pubkey: verificationVote, isSigner: false, isWritable: true },
+    { pubkey: ownerMembership, isSigner: false, isWritable: true },
+    { pubkey: signer, isSigner: true, isWritable: true },
+    { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+  ];
+
+  if (sessionToken) {
+    keys.push({ pubkey: sessionToken, isSigner: false, isWritable: false });
+  }
+
+  return new TransactionInstruction({
+    keys,
+    programId,
+    data: serializeInstruction(CAST_VERIFICATION_VOTE, Buffer.from(serialized)),
+  });
+}
+
+// Session key instructions
+
+export function createCreateSessionInstruction(
+  sessionToken: PublicKey,
+  sessionSigner: PublicKey,
+  authority: PublicKey,
+  validUntil: bigint,
+  topUpLamports: bigint | null,
+  programId: PublicKey
+): TransactionInstruction {
+  const payload = {
+    valid_until: validUntil,
+    top_up_lamports: topUpLamports,
+  };
+  const serialized = borsh.serialize(createSessionSchema as any, payload);
+
   return new TransactionInstruction({
     keys: [
-      { pubkey: board, isSigner: false, isWritable: false },
-      { pubkey: actionItem, isSigner: false, isWritable: true },
-      { pubkey: verificationVote, isSigner: false, isWritable: true },
-      { pubkey: ownerMembership, isSigner: false, isWritable: true },
-      { pubkey: verifier, isSigner: true, isWritable: true },
+      { pubkey: sessionToken, isSigner: false, isWritable: true },
+      { pubkey: sessionSigner, isSigner: true, isWritable: true },
+      { pubkey: authority, isSigner: true, isWritable: true },
       { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
     ],
     programId,
-    data: serializeInstruction(CAST_VERIFICATION_VOTE, Buffer.from(serialized)),
+    data: serializeInstruction(CREATE_SESSION, Buffer.from(serialized)),
+  });
+}
+
+export function createRevokeSessionInstruction(
+  sessionToken: PublicKey,
+  authority: PublicKey,
+  programId: PublicKey
+): TransactionInstruction {
+  return new TransactionInstruction({
+    keys: [
+      { pubkey: sessionToken, isSigner: false, isWritable: true },
+      { pubkey: authority, isSigner: true, isWritable: true },
+    ],
+    programId,
+    data: serializeInstruction(REVOKE_SESSION),
   });
 }
 
@@ -401,4 +531,5 @@ export {
   findVoteRecordPda,
   findActionItemPda,
   findVerificationVotePda,
+  findSessionTokenPda,
 };

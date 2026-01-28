@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { PublicKey } from "@solana/web3.js";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useProgram } from "../../hooks/useProgram";
+import { useSession } from "../../contexts/SessionContext";
 import {
   createCreateActionItemInstruction,
   createCastVerificationVoteInstruction,
@@ -40,7 +41,8 @@ export const DiscussStage: React.FC<Props> = ({
   isOnAllowlist,
 }) => {
   const { publicKey } = useWallet();
-  const { sendInstructions } = useProgram();
+  const { sendInstructions, sendInstructionsWithSession } = useProgram();
+  const { canSign, getSessionSigner, getSessionTokenAddress } = useSession();
 
   // Action item form state
   const [showCreateForm, setShowCreateForm] = useState(false);
@@ -103,18 +105,39 @@ export const DiscussStage: React.FC<Props> = ({
         PROGRAM_ID
       );
 
-      const instruction = createCreateActionItemInstruction(
-        boardAddress,
-        actionItemPda,
-        publicKey,
-        description.trim(),
-        new PublicKey(selectedOwner),
-        selectedVerifiers.map((v) => new PublicKey(v)),
-        threshold,
-        PROGRAM_ID
-      );
+      if (canSign()) {
+        const sessionSigner = getSessionSigner()!;
+        const sessionToken = getSessionTokenAddress()!;
 
-      await sendInstructions([instruction]);
+        const instruction = createCreateActionItemInstruction(
+          boardAddress,
+          actionItemPda,
+          sessionSigner.publicKey,
+          description.trim(),
+          new PublicKey(selectedOwner),
+          selectedVerifiers.map((v) => new PublicKey(v)),
+          threshold,
+          PROGRAM_ID,
+          sessionToken
+        );
+
+        await sendInstructionsWithSession([instruction], sessionSigner, {
+          fallbackToWallet: true,
+        });
+      } else {
+        const instruction = createCreateActionItemInstruction(
+          boardAddress,
+          actionItemPda,
+          publicKey,
+          description.trim(),
+          new PublicKey(selectedOwner),
+          selectedVerifiers.map((v) => new PublicKey(v)),
+          threshold,
+          PROGRAM_ID
+        );
+
+        await sendInstructions([instruction]);
+      }
 
       // Reset form
       setDescription("");
@@ -140,6 +163,7 @@ export const DiscussStage: React.FC<Props> = ({
     try {
       setVotingOn(actionItem.address.toString());
 
+      // Verification vote PDA uses the real wallet (publicKey), not session signer
       const [verificationVotePda] = findVerificationVotePda(
         actionItem.address,
         publicKey,
@@ -152,18 +176,39 @@ export const DiscussStage: React.FC<Props> = ({
         PROGRAM_ID
       );
 
-      const instruction = createCastVerificationVoteInstruction(
-        boardAddress,
-        actionItem.address,
-        verificationVotePda,
-        ownerMembershipPda,
-        publicKey,
-        actionItem.data.actionItemId,
-        approved,
-        PROGRAM_ID
-      );
+      if (canSign()) {
+        const sessionSigner = getSessionSigner()!;
+        const sessionToken = getSessionTokenAddress()!;
 
-      await sendInstructions([instruction]);
+        const instruction = createCastVerificationVoteInstruction(
+          boardAddress,
+          actionItem.address,
+          verificationVotePda,
+          ownerMembershipPda,
+          sessionSigner.publicKey,
+          actionItem.data.actionItemId,
+          approved,
+          PROGRAM_ID,
+          sessionToken
+        );
+
+        await sendInstructionsWithSession([instruction], sessionSigner, {
+          fallbackToWallet: true,
+        });
+      } else {
+        const instruction = createCastVerificationVoteInstruction(
+          boardAddress,
+          actionItem.address,
+          verificationVotePda,
+          ownerMembershipPda,
+          publicKey,
+          actionItem.data.actionItemId,
+          approved,
+          PROGRAM_ID
+        );
+
+        await sendInstructions([instruction]);
+      }
       await refresh();
     } catch (err) {
       console.error("Error casting verification vote:", err);

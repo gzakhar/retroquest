@@ -4,6 +4,7 @@ import { useWallet } from "@solana/wallet-adapter-react";
 import { PublicKey } from "@solana/web3.js";
 import { useBoard } from "../hooks/useBoard";
 import { useProgram } from "../hooks/useProgram";
+import { useSession } from "../contexts/SessionContext";
 import {
   createAdvanceStageInstruction,
   createCloseBoardInstruction,
@@ -18,7 +19,8 @@ import { DiscussStage } from "./stages/DiscussStage";
 export const BoardView: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const { publicKey } = useWallet();
-  const { sendInstructions } = useProgram();
+  const { sendInstructions, sendInstructionsWithSession } = useProgram();
+  const { canSign, getSessionSigner, getSessionTokenAddress } = useSession();
 
   const boardAddress = id ? new PublicKey(id) : null;
   const { board, notes, groups, actionItems, membership, loading, error, refresh } =
@@ -49,14 +51,29 @@ export const BoardView: React.FC = () => {
         isFacilitator: board.facilitator.equals(publicKey),
       });
 
+      if (canSign()) {
+        const sessionSigner = getSessionSigner()!;
+        const sessionToken = getSessionTokenAddress()!;
 
-      const instruction = createAdvanceStageInstruction(
-        boardAddress,
-        publicKey,
-        nextStage,
-        PROGRAM_ID
-      );
-      await sendInstructions([instruction]);
+        const instruction = createAdvanceStageInstruction(
+          boardAddress,
+          sessionSigner.publicKey,
+          nextStage,
+          PROGRAM_ID,
+          sessionToken
+        );
+        await sendInstructionsWithSession([instruction], sessionSigner, {
+          fallbackToWallet: true,
+        });
+      } else {
+        const instruction = createAdvanceStageInstruction(
+          boardAddress,
+          publicKey,
+          nextStage,
+          PROGRAM_ID
+        );
+        await sendInstructions([instruction]);
+      }
       await refresh();
     } catch (err: any) {
       console.error("Error advancing stage:", err);
@@ -77,12 +94,28 @@ export const BoardView: React.FC = () => {
 
     try {
       setAdvancing(true);
-      const instruction = createCloseBoardInstruction(
-        boardAddress,
-        publicKey,
-        PROGRAM_ID
-      );
-      await sendInstructions([instruction]);
+
+      if (canSign()) {
+        const sessionSigner = getSessionSigner()!;
+        const sessionToken = getSessionTokenAddress()!;
+
+        const instruction = createCloseBoardInstruction(
+          boardAddress,
+          sessionSigner.publicKey,
+          PROGRAM_ID,
+          sessionToken
+        );
+        await sendInstructionsWithSession([instruction], sessionSigner, {
+          fallbackToWallet: true,
+        });
+      } else {
+        const instruction = createCloseBoardInstruction(
+          boardAddress,
+          publicKey,
+          PROGRAM_ID
+        );
+        await sendInstructions([instruction]);
+      }
       await refresh();
     } catch (err) {
       console.error("Error closing board:", err);
@@ -168,29 +201,32 @@ export const BoardView: React.FC = () => {
           </h1>
         </div>
 
-        {/* Facilitator Controls */}
-        {isFacilitator && !board.closed && (
-          <div className="flex gap-2">
-            {board.stage < BoardStage.Discuss && (
-              <button
-                onClick={handleAdvanceStage}
-                disabled={advancing}
-                className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 rounded-lg font-medium"
-              >
-                {advancing ? "..." : `Advance to ${STAGE_NAMES[(board.stage + 1) as BoardStage]}`}
-              </button>
-            )}
-            {board.stage === BoardStage.Discuss && (
-              <button
-                onClick={handleCloseBoard}
-                disabled={advancing}
-                className="px-4 py-2 bg-red-600 hover:bg-red-700 disabled:bg-gray-600 rounded-lg font-medium"
-              >
-                {advancing ? "..." : "Close Board"}
-              </button>
-            )}
-          </div>
-        )}
+        {/* Controls */}
+        <div className="flex items-center gap-4">
+          {/* Facilitator Controls */}
+          {isFacilitator && !board.closed && (
+            <div className="flex gap-2">
+              {board.stage < BoardStage.Discuss && (
+                <button
+                  onClick={handleAdvanceStage}
+                  disabled={advancing}
+                  className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 rounded-lg font-medium"
+                >
+                  {advancing ? "..." : `Advance to ${STAGE_NAMES[(board.stage + 1) as BoardStage]}`}
+                </button>
+              )}
+              {board.stage === BoardStage.Discuss && (
+                <button
+                  onClick={handleCloseBoard}
+                  disabled={advancing}
+                  className="px-4 py-2 bg-red-600 hover:bg-red-700 disabled:bg-gray-600 rounded-lg font-medium"
+                >
+                  {advancing ? "..." : "Close Board"}
+                </button>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Stage Progress */}

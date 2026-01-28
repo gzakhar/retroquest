@@ -89,6 +89,15 @@ pub enum RetroError {
 
     #[error("Board must be closed before verification can occur")]
     BoardNotClosed,
+
+    #[error("Session validity exceeds maximum (7 days)")]
+    SessionValidityTooLong,
+
+    #[error("Session has already expired")]
+    SessionAlreadyExpired,
+
+    #[error("Only the session authority can revoke the session")]
+    UnauthorizedSessionRevoke,
 }
 
 impl From<RetroError> for ProgramError {
