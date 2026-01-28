@@ -16,6 +16,7 @@ use crate::{
     instructions::RetroInstruction,
     state::*,
 };
+use session_keys::{validate_signer_or_session, SessionToken, SESSION_TOKEN_SEED};
 
 pub fn process_instruction(
     program_id: &Pubkey,
@@ -73,6 +74,11 @@ pub fn process_instruction(
             action_item_id,
             approved,
         } => process_cast_verification_vote(program_id, accounts, action_item_id, approved),
+        RetroInstruction::CreateSession {
+            valid_until,
+            top_up_lamports,
+        } => process_create_session(program_id, accounts, valid_until, top_up_lamports),
+        RetroInstruction::RevokeSession => process_revoke_session(program_id, accounts),
     }
 }
 
@@ -140,16 +146,58 @@ fn process_create_board(
     voting_credits_per_participant: Option<u8>,
 ) -> ProgramResult {
     msg!("Instruction: CreateBoard");
+
+    // Determine if session token is present based on account count
+    // Without session: registry, board, signer, system, memberships... (4 + allowlist.len())
+    // With session: registry, board, signer, system, session_token, memberships... (5 + allowlist.len())
+    let num_base_accounts = 4;
+    let expected_without_session = num_base_accounts + allowlist.len();
+    let expected_with_session = expected_without_session + 1;
+
+    let has_session_token = if accounts.len() == expected_with_session {
+        true
+    } else if accounts.len() == expected_without_session {
+        false
+    } else {
+        msg!(
+            "Invalid account count: got {}, expected {} or {}",
+            accounts.len(),
+            expected_without_session,
+            expected_with_session
+        );
+        return Err(ProgramError::NotEnoughAccountKeys);
+    };
+
     let account_info_iter = &mut accounts.iter();
 
     let registry_info = next_account_info(account_info_iter)?;
     let board_info = next_account_info(account_info_iter)?;
-    let facilitator_info = next_account_info(account_info_iter)?;
+    let signer_info = next_account_info(account_info_iter)?;
     let system_program_info = next_account_info(account_info_iter)?;
 
-    if !facilitator_info.is_signer {
-        return Err(ProgramError::MissingRequiredSignature);
-    }
+    // Optional session token - only consume if present
+    let session_token_info = if has_session_token {
+        Some(next_account_info(account_info_iter)?)
+    } else {
+        None
+    };
+
+    // Determine the facilitator (authority) - either from session token or direct signer
+    let facilitator = if let Some(session_info) = session_token_info {
+        let session = SessionToken::deserialize(&mut &session_info.data.borrow()[..])?;
+        session.authority
+    } else {
+        *signer_info.key
+    };
+
+    // Validate signer or session
+    validate_signer_or_session(
+        signer_info,
+        &facilitator,
+        session_token_info,
+        program_id,
+        program_id,
+    )?;
 
     // Validate categories
     if categories.is_empty() {
@@ -174,7 +222,7 @@ fn process_create_board(
     if !registry.is_initialized {
         return Err(RetroError::AccountNotInitialized.into());
     }
-    if registry.facilitator != *facilitator_info.key {
+    if registry.facilitator != facilitator {
         return Err(RetroError::UnauthorizedFacilitator.into());
     }
 
@@ -182,7 +230,7 @@ fn process_create_board(
     let (pda, bump) = Pubkey::find_program_address(
         &[
             BOARD_SEED,
-            facilitator_info.key.as_ref(),
+            facilitator.as_ref(),
             &board_index.to_le_bytes(),
         ],
         program_id,
@@ -198,20 +246,20 @@ fn process_create_board(
 
     invoke_signed(
         &system_instruction::create_account(
-            facilitator_info.key,
+            signer_info.key,
             board_info.key,
             lamports,
             space as u64,
             program_id,
         ),
         &[
-            facilitator_info.clone(),
+            signer_info.clone(),
             board_info.clone(),
             system_program_info.clone(),
         ],
         &[&[
             BOARD_SEED,
-            facilitator_info.key.as_ref(),
+            facilitator.as_ref(),
             &board_index.to_le_bytes(),
             &[bump],
         ]],
@@ -220,7 +268,7 @@ fn process_create_board(
     let clock = Clock::get()?;
     let board = RetroBoard {
         is_initialized: true,
-        facilitator: *facilitator_info.key,
+        facilitator,
         board_index,
         stage: BoardStage::Setup,
         closed: false,
@@ -255,14 +303,14 @@ fn process_create_board(
 
         invoke_signed(
             &system_instruction::create_account(
-                facilitator_info.key,
+                signer_info.key,
                 membership_info.key,
                 lamports,
                 space as u64,
                 program_id,
             ),
             &[
-                facilitator_info.clone(),
+                signer_info.clone(),
                 membership_info.clone(),
                 system_program_info.clone(),
             ],
@@ -296,11 +344,26 @@ fn process_advance_stage(
     let account_info_iter = &mut accounts.iter();
 
     let board_info = next_account_info(account_info_iter)?;
-    let facilitator_info = next_account_info(account_info_iter)?;
+    let signer_info = next_account_info(account_info_iter)?;
+    // Optional session token for session-based signing
+    let session_token_info = next_account_info(account_info_iter).ok();
 
-    if !facilitator_info.is_signer {
-        return Err(ProgramError::MissingRequiredSignature);
-    }
+    // Determine the facilitator (authority) - either from session token or direct signer
+    let facilitator = if let Some(session_info) = session_token_info {
+        let session = SessionToken::deserialize(&mut &session_info.data.borrow()[..])?;
+        session.authority
+    } else {
+        *signer_info.key
+    };
+
+    // Validate signer or session
+    validate_signer_or_session(
+        signer_info,
+        &facilitator,
+        session_token_info,
+        program_id,
+        program_id,
+    )?;
 
     if board_info.owner != program_id {
         return Err(RetroError::InvalidAccountOwner.into());
@@ -310,7 +373,7 @@ fn process_advance_stage(
     if !board.is_initialized {
         return Err(RetroError::AccountNotInitialized.into());
     }
-    if board.facilitator != *facilitator_info.key {
+    if board.facilitator != facilitator {
         return Err(RetroError::UnauthorizedFacilitator.into());
     }
     if board.closed {
@@ -337,11 +400,26 @@ fn process_close_board(
     let account_info_iter = &mut accounts.iter();
 
     let board_info = next_account_info(account_info_iter)?;
-    let facilitator_info = next_account_info(account_info_iter)?;
+    let signer_info = next_account_info(account_info_iter)?;
+    // Optional session token for session-based signing
+    let session_token_info = next_account_info(account_info_iter).ok();
 
-    if !facilitator_info.is_signer {
-        return Err(ProgramError::MissingRequiredSignature);
-    }
+    // Determine the facilitator (authority) - either from session token or direct signer
+    let facilitator = if let Some(session_info) = session_token_info {
+        let session = SessionToken::deserialize(&mut &session_info.data.borrow()[..])?;
+        session.authority
+    } else {
+        *signer_info.key
+    };
+
+    // Validate signer or session
+    validate_signer_or_session(
+        signer_info,
+        &facilitator,
+        session_token_info,
+        program_id,
+        program_id,
+    )?;
 
     if board_info.owner != program_id {
         return Err(RetroError::InvalidAccountOwner.into());
@@ -351,7 +429,7 @@ fn process_close_board(
     if !board.is_initialized {
         return Err(RetroError::AccountNotInitialized.into());
     }
-    if board.facilitator != *facilitator_info.key {
+    if board.facilitator != facilitator {
         return Err(RetroError::UnauthorizedFacilitator.into());
     }
     if board.closed {
@@ -378,12 +456,29 @@ fn process_create_note(
 
     let board_info = next_account_info(account_info_iter)?;
     let note_info = next_account_info(account_info_iter)?;
-    let author_info = next_account_info(account_info_iter)?;
+    let signer_info = next_account_info(account_info_iter)?;
     let system_program_info = next_account_info(account_info_iter)?;
+    // Optional session token for session-based signing
+    let session_token_info = next_account_info(account_info_iter).ok();
 
-    if !author_info.is_signer {
-        return Err(ProgramError::MissingRequiredSignature);
-    }
+    // Determine the author (authority) based on signing method
+    let author = if let Some(session_info) = session_token_info {
+        // Session-based signing: get authority from session token
+        let session = SessionToken::deserialize(&mut &session_info.data.borrow()[..])?;
+        session.authority
+    } else {
+        // Direct wallet signing: signer is the author
+        *signer_info.key
+    };
+
+    // Validate signature (either direct or session-based)
+    validate_signer_or_session(
+        signer_info,
+        &author,
+        session_token_info,
+        program_id, // session tokens are owned by this program
+        program_id, // target program is this program
+    )?;
 
     if board_info.owner != program_id {
         return Err(RetroError::InvalidAccountOwner.into());
@@ -400,7 +495,7 @@ fn process_create_note(
         return Err(RetroError::InvalidStage.into());
     }
 
-    if !board.allowlist.contains(author_info.key) {
+    if !board.allowlist.contains(&author) {
         return Err(RetroError::NotOnAllowlist.into());
     }
 
@@ -427,14 +522,14 @@ fn process_create_note(
 
     invoke_signed(
         &system_instruction::create_account(
-            author_info.key,
+            signer_info.key,
             note_info.key,
             lamports,
             space as u64,
             program_id,
         ),
         &[
-            author_info.clone(),
+            signer_info.clone(),
             note_info.clone(),
             system_program_info.clone(),
         ],
@@ -446,7 +541,7 @@ fn process_create_note(
         is_initialized: true,
         board: *board_info.key,
         note_id,
-        author: *author_info.key,
+        author,
         category_id,
         content,
         created_at_slot: clock.slot,
@@ -472,12 +567,27 @@ fn process_create_group(
 
     let board_info = next_account_info(account_info_iter)?;
     let group_info = next_account_info(account_info_iter)?;
-    let creator_info = next_account_info(account_info_iter)?;
+    let signer_info = next_account_info(account_info_iter)?;
     let system_program_info = next_account_info(account_info_iter)?;
+    // Optional session token for session-based signing
+    let session_token_info = next_account_info(account_info_iter).ok();
 
-    if !creator_info.is_signer {
-        return Err(ProgramError::MissingRequiredSignature);
-    }
+    // Determine the creator (authority) based on signing method
+    let creator = if let Some(session_info) = session_token_info {
+        let session = SessionToken::deserialize(&mut &session_info.data.borrow()[..])?;
+        session.authority
+    } else {
+        *signer_info.key
+    };
+
+    // Validate signature (either direct or session-based)
+    validate_signer_or_session(
+        signer_info,
+        &creator,
+        session_token_info,
+        program_id,
+        program_id,
+    )?;
 
     if board_info.owner != program_id {
         return Err(RetroError::InvalidAccountOwner.into());
@@ -495,7 +605,7 @@ fn process_create_group(
     }
 
     // Check allowlist
-    if !board.allowlist.contains(creator_info.key) {
+    if !board.allowlist.contains(&creator) {
         return Err(RetroError::NotOnAllowlist.into());
     }
 
@@ -519,14 +629,14 @@ fn process_create_group(
 
     invoke_signed(
         &system_instruction::create_account(
-            creator_info.key,
+            signer_info.key,
             group_info.key,
             lamports,
             space as u64,
             program_id,
         ),
         &[
-            creator_info.clone(),
+            signer_info.clone(),
             group_info.clone(),
             system_program_info.clone(),
         ],
@@ -538,7 +648,7 @@ fn process_create_group(
         board: *board_info.key,
         group_id,
         title,
-        created_by: *creator_info.key,
+        created_by: creator,
         vote_tally: 0,
         bump,
     };
@@ -562,11 +672,26 @@ fn process_set_group_title(
 
     let board_info = next_account_info(account_info_iter)?;
     let group_info = next_account_info(account_info_iter)?;
-    let participant_info = next_account_info(account_info_iter)?;
+    let signer_info = next_account_info(account_info_iter)?;
+    // Optional session token for session-based signing
+    let session_token_info = next_account_info(account_info_iter).ok();
 
-    if !participant_info.is_signer {
-        return Err(ProgramError::MissingRequiredSignature);
-    }
+    // Determine the participant (authority) based on signing method
+    let participant = if let Some(session_info) = session_token_info {
+        let session = SessionToken::deserialize(&mut &session_info.data.borrow()[..])?;
+        session.authority
+    } else {
+        *signer_info.key
+    };
+
+    // Validate signature (either direct or session-based)
+    validate_signer_or_session(
+        signer_info,
+        &participant,
+        session_token_info,
+        program_id,
+        program_id,
+    )?;
 
     if board_info.owner != program_id {
         return Err(RetroError::InvalidAccountOwner.into());
@@ -584,7 +709,7 @@ fn process_set_group_title(
     }
 
     // Check allowlist
-    if !board.allowlist.contains(participant_info.key) {
+    if !board.allowlist.contains(&participant) {
         return Err(RetroError::NotOnAllowlist.into());
     }
 
@@ -615,11 +740,26 @@ fn process_assign_note_to_group(
     let board_info = next_account_info(account_info_iter)?;
     let note_info = next_account_info(account_info_iter)?;
     let group_info = next_account_info(account_info_iter)?;
-    let participant_info = next_account_info(account_info_iter)?;
+    let signer_info = next_account_info(account_info_iter)?;
+    // Optional session token for session-based signing
+    let session_token_info = next_account_info(account_info_iter).ok();
 
-    if !participant_info.is_signer {
-        return Err(ProgramError::MissingRequiredSignature);
-    }
+    // Determine the participant (authority) based on signing method
+    let participant = if let Some(session_info) = session_token_info {
+        let session = SessionToken::deserialize(&mut &session_info.data.borrow()[..])?;
+        session.authority
+    } else {
+        *signer_info.key
+    };
+
+    // Validate signature (either direct or session-based)
+    validate_signer_or_session(
+        signer_info,
+        &participant,
+        session_token_info,
+        program_id,
+        program_id,
+    )?;
 
     if board_info.owner != program_id {
         return Err(RetroError::InvalidAccountOwner.into());
@@ -637,7 +777,7 @@ fn process_assign_note_to_group(
     }
 
     // Check allowlist
-    if !board.allowlist.contains(participant_info.key) {
+    if !board.allowlist.contains(&participant) {
         return Err(RetroError::NotOnAllowlist.into());
     }
 
@@ -670,11 +810,26 @@ fn process_unassign_note(
 
     let board_info = next_account_info(account_info_iter)?;
     let note_info = next_account_info(account_info_iter)?;
-    let participant_info = next_account_info(account_info_iter)?;
+    let signer_info = next_account_info(account_info_iter)?;
+    // Optional session token for session-based signing
+    let session_token_info = next_account_info(account_info_iter).ok();
 
-    if !participant_info.is_signer {
-        return Err(ProgramError::MissingRequiredSignature);
-    }
+    // Determine the participant (authority) based on signing method
+    let participant = if let Some(session_info) = session_token_info {
+        let session = SessionToken::deserialize(&mut &session_info.data.borrow()[..])?;
+        session.authority
+    } else {
+        *signer_info.key
+    };
+
+    // Validate signature (either direct or session-based)
+    validate_signer_or_session(
+        signer_info,
+        &participant,
+        session_token_info,
+        program_id,
+        program_id,
+    )?;
 
     if board_info.owner != program_id {
         return Err(RetroError::InvalidAccountOwner.into());
@@ -692,7 +847,7 @@ fn process_unassign_note(
     }
 
     // Check allowlist
-    if !board.allowlist.contains(participant_info.key) {
+    if !board.allowlist.contains(&participant) {
         return Err(RetroError::NotOnAllowlist.into());
     }
 
@@ -723,12 +878,27 @@ fn process_cast_vote(
     let membership_info = next_account_info(account_info_iter)?;
     let group_info = next_account_info(account_info_iter)?;
     let vote_record_info = next_account_info(account_info_iter)?;
-    let voter_info = next_account_info(account_info_iter)?;
+    let signer_info = next_account_info(account_info_iter)?;
     let system_program_info = next_account_info(account_info_iter)?;
+    // Optional session token for session-based signing
+    let session_token_info = next_account_info(account_info_iter).ok();
 
-    if !voter_info.is_signer {
-        return Err(ProgramError::MissingRequiredSignature);
-    }
+    // Determine the voter (authority) based on signing method
+    let voter = if let Some(session_info) = session_token_info {
+        let session = SessionToken::deserialize(&mut &session_info.data.borrow()[..])?;
+        session.authority
+    } else {
+        *signer_info.key
+    };
+
+    // Validate signature (either direct or session-based)
+    validate_signer_or_session(
+        signer_info,
+        &voter,
+        session_token_info,
+        program_id,
+        program_id,
+    )?;
 
     if board_info.owner != program_id {
         return Err(RetroError::InvalidAccountOwner.into());
@@ -746,7 +916,7 @@ fn process_cast_vote(
     }
 
     // Check allowlist
-    if !board.allowlist.contains(voter_info.key) {
+    if !board.allowlist.contains(&voter) {
         return Err(RetroError::NotOnAllowlist.into());
     }
 
@@ -754,9 +924,9 @@ fn process_cast_vote(
         return Err(RetroError::CannotDecreaseVotes.into());
     }
 
-    // Verify BoardMembership PDA
+    // Verify BoardMembership PDA (uses voter/authority, not session signer)
     let (membership_pda, membership_bump) = Pubkey::find_program_address(
-        &[MEMBERSHIP_SEED, board_info.key.as_ref(), voter_info.key.as_ref()],
+        &[MEMBERSHIP_SEED, board_info.key.as_ref(), voter.as_ref()],
         program_id,
     );
 
@@ -772,24 +942,24 @@ fn process_cast_vote(
 
         invoke_signed(
             &system_instruction::create_account(
-                voter_info.key,
+                signer_info.key,
                 membership_info.key,
                 lamports,
                 space as u64,
                 program_id,
             ),
             &[
-                voter_info.clone(),
+                signer_info.clone(),
                 membership_info.clone(),
                 system_program_info.clone(),
             ],
-            &[&[MEMBERSHIP_SEED, board_info.key.as_ref(), voter_info.key.as_ref(), &[membership_bump]]],
+            &[&[MEMBERSHIP_SEED, board_info.key.as_ref(), voter.as_ref(), &[membership_bump]]],
         )?;
 
         BoardMembership {
             is_initialized: true,
             board: *board_info.key,
-            participant: *voter_info.key,
+            participant: voter,
             credits_spent: 0,
             total_score: 0,
             bump: membership_bump,
@@ -811,8 +981,9 @@ fn process_cast_vote(
         return Err(RetroError::AccountNotInitialized.into());
     }
 
+    // Verify VoteRecord PDA (uses voter/authority, not session signer)
     let (vote_pda, vote_bump) = Pubkey::find_program_address(
-        &[VOTE_SEED, board_info.key.as_ref(), voter_info.key.as_ref(), &group_id.to_le_bytes()],
+        &[VOTE_SEED, board_info.key.as_ref(), voter.as_ref(), &group_id.to_le_bytes()],
         program_id,
     );
 
@@ -828,24 +999,24 @@ fn process_cast_vote(
 
         invoke_signed(
             &system_instruction::create_account(
-                voter_info.key,
+                signer_info.key,
                 vote_record_info.key,
                 lamports,
                 space as u64,
                 program_id,
             ),
             &[
-                voter_info.clone(),
+                signer_info.clone(),
                 vote_record_info.clone(),
                 system_program_info.clone(),
             ],
-            &[&[VOTE_SEED, board_info.key.as_ref(), voter_info.key.as_ref(), &group_id.to_le_bytes(), &[vote_bump]]],
+            &[&[VOTE_SEED, board_info.key.as_ref(), voter.as_ref(), &group_id.to_le_bytes(), &[vote_bump]]],
         )?;
 
         VoteRecord {
             is_initialized: true,
             board: *board_info.key,
-            participant: *voter_info.key,
+            participant: voter,
             group_id,
             credits_spent: 0,
             bump: vote_bump,
@@ -883,12 +1054,27 @@ fn process_create_action_item(
 
     let board_info = next_account_info(account_info_iter)?;
     let action_item_info = next_account_info(account_info_iter)?;
-    let facilitator_info = next_account_info(account_info_iter)?;
+    let signer_info = next_account_info(account_info_iter)?;
     let system_program_info = next_account_info(account_info_iter)?;
+    // Optional session token for session-based signing
+    let session_token_info = next_account_info(account_info_iter).ok();
 
-    if !facilitator_info.is_signer {
-        return Err(ProgramError::MissingRequiredSignature);
-    }
+    // Determine the facilitator (authority) - either from session token or direct signer
+    let facilitator = if let Some(session_info) = session_token_info {
+        let session = SessionToken::deserialize(&mut &session_info.data.borrow()[..])?;
+        session.authority
+    } else {
+        *signer_info.key
+    };
+
+    // Validate signer or session
+    validate_signer_or_session(
+        signer_info,
+        &facilitator,
+        session_token_info,
+        program_id,
+        program_id,
+    )?;
 
     if board_info.owner != program_id {
         return Err(RetroError::InvalidAccountOwner.into());
@@ -904,7 +1090,7 @@ fn process_create_action_item(
     if board.stage != BoardStage::Discuss {
         return Err(RetroError::InvalidStage.into());
     }
-    if board.facilitator != *facilitator_info.key {
+    if board.facilitator != facilitator {
         return Err(RetroError::UnauthorizedFacilitator.into());
     }
 
@@ -957,14 +1143,14 @@ fn process_create_action_item(
 
     invoke_signed(
         &system_instruction::create_account(
-            facilitator_info.key,
+            signer_info.key,
             action_item_info.key,
             lamports,
             space as u64,
             program_id,
         ),
         &[
-            facilitator_info.clone(),
+            signer_info.clone(),
             action_item_info.clone(),
             system_program_info.clone(),
         ],
@@ -1008,12 +1194,27 @@ fn process_cast_verification_vote(
     let action_item_info = next_account_info(account_info_iter)?;
     let vote_info = next_account_info(account_info_iter)?;
     let owner_membership_info = next_account_info(account_info_iter)?;
-    let verifier_info = next_account_info(account_info_iter)?;
+    let signer_info = next_account_info(account_info_iter)?;
     let system_program_info = next_account_info(account_info_iter)?;
+    // Optional session token for session-based signing
+    let session_token_info = next_account_info(account_info_iter).ok();
 
-    if !verifier_info.is_signer {
-        return Err(ProgramError::MissingRequiredSignature);
-    }
+    // Determine the verifier (authority) based on signing method
+    let verifier = if let Some(session_info) = session_token_info {
+        let session = SessionToken::deserialize(&mut &session_info.data.borrow()[..])?;
+        session.authority
+    } else {
+        *signer_info.key
+    };
+
+    // Validate signature (either direct or session-based)
+    validate_signer_or_session(
+        signer_info,
+        &verifier,
+        session_token_info,
+        program_id,
+        program_id,
+    )?;
 
     if board_info.owner != program_id {
         return Err(RetroError::InvalidAccountOwner.into());
@@ -1041,13 +1242,13 @@ fn process_cast_verification_vote(
     }
 
     // Validate verifier is in the action item's verifiers list
-    if !action_item.verifiers.contains(verifier_info.key) {
+    if !action_item.verifiers.contains(&verifier) {
         return Err(RetroError::NotAVerifier.into());
     }
 
-    // Verify vote PDA
+    // Verify vote PDA (uses verifier/authority, not session signer)
     let (vote_pda, vote_bump) = Pubkey::find_program_address(
-        &[VERIFICATION_VOTE_SEED, action_item_info.key.as_ref(), verifier_info.key.as_ref()],
+        &[VERIFICATION_VOTE_SEED, action_item_info.key.as_ref(), verifier.as_ref()],
         program_id,
     );
 
@@ -1077,25 +1278,25 @@ fn process_cast_verification_vote(
 
     invoke_signed(
         &system_instruction::create_account(
-            verifier_info.key,
+            signer_info.key,
             vote_info.key,
             lamports,
             space as u64,
             program_id,
         ),
         &[
-            verifier_info.clone(),
+            signer_info.clone(),
             vote_info.clone(),
             system_program_info.clone(),
         ],
-        &[&[VERIFICATION_VOTE_SEED, action_item_info.key.as_ref(), verifier_info.key.as_ref(), &[vote_bump]]],
+        &[&[VERIFICATION_VOTE_SEED, action_item_info.key.as_ref(), verifier.as_ref(), &[vote_bump]]],
     )?;
 
     let clock = Clock::get()?;
     let vote = VerificationVote {
         is_initialized: true,
         action_item: *action_item_info.key,
-        verifier: *verifier_info.key,
+        verifier,
         approved,
         voted_at_slot: clock.slot,
         bump: vote_bump,
@@ -1120,6 +1321,156 @@ fn process_cast_verification_vote(
     }
 
     action_item.serialize(&mut *action_item_info.data.borrow_mut())?;
+
+    Ok(())
+}
+
+fn process_create_session(
+    program_id: &Pubkey,
+    accounts: &[AccountInfo],
+    valid_until: i64,
+    top_up_lamports: Option<u64>,
+) -> ProgramResult {
+    msg!("Instruction: CreateSession");
+    let account_info_iter = &mut accounts.iter();
+
+    let session_token_info = next_account_info(account_info_iter)?;
+    let session_signer_info = next_account_info(account_info_iter)?;
+    let authority_info = next_account_info(account_info_iter)?;
+    let system_program_info = next_account_info(account_info_iter)?;
+
+    // Both session signer and authority must sign
+    if !session_signer_info.is_signer {
+        return Err(ProgramError::MissingRequiredSignature);
+    }
+    if !authority_info.is_signer {
+        return Err(ProgramError::MissingRequiredSignature);
+    }
+
+    // Validate valid_until is not too far in the future (max 7 days)
+    let clock = Clock::get()?;
+    let max_valid_until = clock.unix_timestamp + session_keys::MAX_VALIDITY_SECONDS;
+    if valid_until > max_valid_until {
+        return Err(RetroError::SessionValidityTooLong.into());
+    }
+    if valid_until <= clock.unix_timestamp {
+        return Err(RetroError::SessionAlreadyExpired.into());
+    }
+
+    // Derive session token PDA
+    // Seeds: ["session_token", target_program, session_signer, authority]
+    let (pda, bump) = Pubkey::find_program_address(
+        &[
+            SESSION_TOKEN_SEED,
+            program_id.as_ref(),
+            session_signer_info.key.as_ref(),
+            authority_info.key.as_ref(),
+        ],
+        program_id,
+    );
+
+    if pda != *session_token_info.key {
+        return Err(RetroError::InvalidPDA.into());
+    }
+
+    // Create the session token account
+    let rent = Rent::get()?;
+    let space = SessionToken::LEN;
+    let lamports = rent.minimum_balance(space);
+
+    invoke_signed(
+        &system_instruction::create_account(
+            authority_info.key,
+            session_token_info.key,
+            lamports,
+            space as u64,
+            program_id,
+        ),
+        &[
+            authority_info.clone(),
+            session_token_info.clone(),
+            system_program_info.clone(),
+        ],
+        &[&[
+            SESSION_TOKEN_SEED,
+            program_id.as_ref(),
+            session_signer_info.key.as_ref(),
+            authority_info.key.as_ref(),
+            &[bump],
+        ]],
+    )?;
+
+    // Initialize session token data
+    let session_token = SessionToken {
+        authority: *authority_info.key,
+        target_program: *program_id,
+        session_signer: *session_signer_info.key,
+        valid_until,
+    };
+
+    session_token.serialize(&mut *session_token_info.data.borrow_mut())?;
+
+    // Optionally top up the session signer with lamports for transaction fees
+    if let Some(top_up) = top_up_lamports {
+        if top_up > 0 {
+            invoke_signed(
+                &system_instruction::transfer(authority_info.key, session_signer_info.key, top_up),
+                &[
+                    authority_info.clone(),
+                    session_signer_info.clone(),
+                    system_program_info.clone(),
+                ],
+                &[],
+            )?;
+        }
+    }
+
+    msg!("Session created for authority: {}", authority_info.key);
+    msg!("Session signer: {}", session_signer_info.key);
+    msg!("Valid until: {}", valid_until);
+
+    Ok(())
+}
+
+fn process_revoke_session(
+    program_id: &Pubkey,
+    accounts: &[AccountInfo],
+) -> ProgramResult {
+    msg!("Instruction: RevokeSession");
+    let account_info_iter = &mut accounts.iter();
+
+    let session_token_info = next_account_info(account_info_iter)?;
+    let authority_info = next_account_info(account_info_iter)?;
+
+    // Authority must sign
+    if !authority_info.is_signer {
+        return Err(ProgramError::MissingRequiredSignature);
+    }
+
+    // Verify account ownership
+    if session_token_info.owner != program_id {
+        return Err(RetroError::InvalidAccountOwner.into());
+    }
+
+    // Deserialize and validate the session token
+    let session_token = SessionToken::deserialize(&mut &session_token_info.data.borrow()[..])?;
+
+    // Verify authority matches
+    if session_token.authority != *authority_info.key {
+        return Err(RetroError::UnauthorizedSessionRevoke.into());
+    }
+
+    // Close the account by transferring lamports and zeroing data
+    let dest_lamports = authority_info.lamports();
+    **authority_info.lamports.borrow_mut() = dest_lamports
+        .checked_add(session_token_info.lamports())
+        .ok_or(ProgramError::ArithmeticOverflow)?;
+    **session_token_info.lamports.borrow_mut() = 0;
+
+    // Zero out the account data
+    session_token_info.data.borrow_mut().fill(0);
+
+    msg!("Session revoked for authority: {}", authority_info.key);
 
     Ok(())
 }

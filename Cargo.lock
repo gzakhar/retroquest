@@ -746,6 +746,7 @@ version = "0.1.0"
 dependencies = [
  "borsh 0.10.4",
  "indexmap",
+ "session-keys",
  "solana-program",
  "thiserror 1.0.69",
 ]
@@ -828,6 +829,14 @@ dependencies = [
  "serde",
  "serde_core",
  "zmij",
+]
+
+[[package]]
+name = "session-keys"
+version = "0.1.0"
+dependencies = [
+ "borsh 0.10.4",
+ "solana-program",
 ]
 
 [[package]]

@@ -16,6 +16,8 @@ pub const UNASSIGN_NOTE: u8 = 8;
 pub const CAST_VOTE: u8 = 9;
 pub const CREATE_ACTION_ITEM: u8 = 10;
 pub const CAST_VERIFICATION_VOTE: u8 = 11;
+pub const CREATE_SESSION: u8 = 12;
+pub const REVOKE_SESSION: u8 = 13;
 
 #[derive(Debug)]
 pub enum RetroInstruction {
@@ -122,6 +124,23 @@ pub enum RetroInstruction {
     /// 4. `[signer]` Verifier
     /// 5. `[]` System program
     CastVerificationVote { action_item_id: u64, approved: bool },
+
+    /// Create a session token for ephemeral signing
+    /// Accounts:
+    /// 0. `[writable]` Session token PDA
+    /// 1. `[signer]` Session signer (ephemeral keypair)
+    /// 2. `[signer]` Authority (user's wallet)
+    /// 3. `[]` System program
+    CreateSession {
+        valid_until: i64,
+        top_up_lamports: Option<u64>,
+    },
+
+    /// Revoke a session token
+    /// Accounts:
+    /// 0. `[writable]` Session token PDA
+    /// 1. `[signer]` Authority (user's wallet)
+    RevokeSession,
 }
 
 // Instruction data payloads for Borsh deserialization
@@ -183,6 +202,12 @@ struct CreateActionItemPayload {
 struct CastVerificationVotePayload {
     action_item_id: u64,
     approved: bool,
+}
+
+#[derive(BorshDeserialize)]
+struct CreateSessionPayload {
+    valid_until: i64,
+    top_up_lamports: Option<u64>,
 }
 
 impl RetroInstruction {
@@ -291,6 +316,17 @@ impl RetroInstruction {
                     approved: payload.approved,
                 }
             }
+
+            12 => {
+                let payload = CreateSessionPayload::try_from_slice(rest)
+                    .map_err(|_| ProgramError::InvalidInstructionData)?;
+                Self::CreateSession {
+                    valid_until: payload.valid_until,
+                    top_up_lamports: payload.top_up_lamports,
+                }
+            }
+
+            13 => Self::RevokeSession,
 
             _ => return Err(ProgramError::InvalidInstructionData),
         })

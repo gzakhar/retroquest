@@ -112,6 +112,14 @@ export interface VerificationVote {
   bump: number;
 }
 
+// Session token for ephemeral signing (matches session-keys crate)
+export interface SessionToken {
+  authority: PublicKey;
+  targetProgram: PublicKey;
+  sessionSigner: PublicKey;
+  validUntil: bigint;
+}
+
 // UI-specific types
 export interface BoardWithAddress {
   address: PublicKey;
@@ -139,7 +147,17 @@ export interface VerificationVoteWithAddress {
   data: VerificationVote;
 }
 
+export interface SessionTokenWithAddress {
+  address: PublicKey;
+  data: SessionToken;
+}
+
+// Session key constants
+export const DEFAULT_SESSION_VALIDITY_SECONDS = 3600; // 1 hour
+export const MAX_SESSION_VALIDITY_SECONDS = 7 * 24 * 60 * 60; // 7 days
+export const DEFAULT_TOP_UP_LAMPORTS = 10_000_000n; // 0.01 SOL
+
 // Program ID (deployed on devnet)
 export const PROGRAM_ID = new PublicKey(
-  "E4AhDGeoqgj3CG7EJshac5KqNADwC5mhp9cMvagLTF6Q"
+  "52vL4fE1dqriKmGj7MddAvSkg2a7QvWcsFt7159EmbbC"
 );

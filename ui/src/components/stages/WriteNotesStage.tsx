@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { PublicKey } from "@solana/web3.js";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useProgram } from "../../hooks/useProgram";
+import { useSession } from "../../contexts/SessionContext";
 import {
   createCreateNoteInstruction,
   findNotePda,
@@ -33,7 +34,8 @@ export const WriteNotesStage: React.FC<Props> = ({
   isOnAllowlist,
 }) => {
   const { publicKey } = useWallet();
-  const { sendInstructions } = useProgram();
+  const { sendInstructions, sendInstructionsWithSession } = useProgram();
+  const { canSign, getSessionSigner, getSessionTokenAddress } = useSession();
   const [selectedCategory, setSelectedCategory] = useState(0);
   const [noteContent, setNoteContent] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -44,15 +46,37 @@ export const WriteNotesStage: React.FC<Props> = ({
     try {
       setSubmitting(true);
       const [notePda] = findNotePda(boardAddress, board.noteCount, PROGRAM_ID);
-      const instruction = createCreateNoteInstruction(
-        boardAddress,
-        notePda,
-        publicKey,
-        selectedCategory,
-        noteContent.trim(),
-        PROGRAM_ID
-      );
-      await sendInstructions([instruction]);
+
+      // Check if we can use session signing
+      if (canSign()) {
+        const sessionSigner = getSessionSigner()!;
+        const sessionToken = getSessionTokenAddress()!;
+
+        const instruction = createCreateNoteInstruction(
+          boardAddress,
+          notePda,
+          sessionSigner.publicKey,
+          selectedCategory,
+          noteContent.trim(),
+          PROGRAM_ID,
+          sessionToken
+        );
+        await sendInstructionsWithSession([instruction], sessionSigner, {
+          fallbackToWallet: true,
+        });
+      } else {
+        // Fallback to wallet signing
+        const instruction = createCreateNoteInstruction(
+          boardAddress,
+          notePda,
+          publicKey,
+          selectedCategory,
+          noteContent.trim(),
+          PROGRAM_ID
+        );
+        await sendInstructions([instruction]);
+      }
+
       setNoteContent("");
       await refresh();
     } catch (err) {

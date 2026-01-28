@@ -1,0 +1,14 @@
+[package]
+name = "session-keys"
+version = "0.1.0"
+edition = "2021"
+description = "Session keys for native Solana programs - enables ephemeral signing to reduce wallet popups"
+license = "MIT"
+
+[features]
+default = []
+no-entrypoint = []
+
+[dependencies]
+borsh = "0.10"
+solana-program = "2.0"
