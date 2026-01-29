@@ -131,6 +131,43 @@ For each increment:
 
 ---
 
+## Bug Triage Workflow
+
+When a GitHub issue is filed, follow this systematic approach to create a thorough Linear ticket:
+
+### 1. Read
+- Read the GitHub issue thoroughly
+- Note the reported symptoms, error messages, and screenshots
+
+### 2. Clarify
+- Ask clarifying questions directly on the GitHub issue
+- Be skeptical - extract context before assuming there's a bug
+- Key questions: Who? What action? What wallet/session? First attempt or repeat?
+
+### 3. Investigate
+- Explore relevant code once context is clear
+- Trace the error to root cause
+- Check if there are related issues
+
+### 4. Document
+Create a thorough Linear ticket with:
+- **Problem statement**: One-sentence summary
+- **Root cause**: Why this is happening
+- **Reproduction steps**: Numbered steps to recreate
+- **Affected files**: Paths and line numbers
+- **Recommended solution**: Preferred fix approach
+- **Acceptance criteria**: Checkboxes for "done"
+
+### 5. Create & Link
+- Create the Linear issue with appropriate type (Bug/Feature)
+- Link back to the GitHub issue
+- Update GitHub issue with Linear link
+
+### Why This Matters
+It's cheaper to clarify upfront than to investigate the wrong problem. A well-documented ticket enables faster, more accurate fixes.
+
+---
+
 ## Project Structure
 
 RetroQuest consists of three main components:
