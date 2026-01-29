@@ -62,6 +62,75 @@ When making decisions, ask: **Does this improve follow-through on action items?*
 
 ---
 
+## Development Workflow
+
+When working on issues, follow this systematic approach:
+
+### 1. Understand
+- Read the issue thoroughly (Linear, GitHub, etc.)
+- Explore relevant code to understand current state
+- Identify affected files and dependencies
+
+### 2. Branch
+Create a feature branch from `main` using this naming convention:
+```
+{type}/{ISSUE-ID}-{short-description}
+
+Types:
+  feature/  - New functionality
+  fix/      - Bug fixes
+  refactor/ - Code cleanup, no behavior change
+  docs/     - Documentation only
+  test/     - Test additions/fixes
+
+Examples:
+  feature/GZA-5-participant-discovery
+  fix/GZA-12-vote-calculation
+```
+
+### 3. Clarify
+Ask questions before coding. It's cheaper to clarify upfront than to rewrite later.
+
+### 4. Plan
+Break down the work into testable increments. Use TodoWrite to track tasks.
+
+### 5. Implement (Layered Testing Strategy)
+
+Different layers require different testing approaches:
+
+| Layer | Approach | Examples |
+|-------|----------|----------|
+| **Utils/Logic** | TDD (Red-Green-Refactor) | Pure functions, data transformations |
+| **Data/RPC** | Integration tests | `getProgramAccounts`, on-chain state |
+| **UI Components** | Manual verification | Layout, styling, visual design |
+| **Critical Flows** | E2E tests (when justified) | Full user journeys |
+
+For each increment:
+- **If testable**: Write failing test → Implement → Refactor
+- **If UI-only**: Implement → Manually verify → Document what was verified
+
+### 6. Commit
+- Keep commits atomic and focused
+- Push to GitHub
+
+### 7. Pull Request
+- Create PR with summary, root cause (if bug), and test plan
+- Link to issue (e.g., "Fixes GZA-5")
+
+### 8. Review
+- Wait for human review before merging
+- Address feedback in new commits (don't amend unless asked)
+
+### Deployment Notes
+
+| Change Type | Action Required |
+|-------------|-----------------|
+| **UI-only** | Rebuild and redeploy UI (`cd ui && npm run build`) |
+| **Program** | Requires `make deploy-upgrade` from local machine |
+| **Both** | Deploy program first, then rebuild UI |
+
+---
+
 ## Project Structure
 
 RetroQuest consists of three main components:

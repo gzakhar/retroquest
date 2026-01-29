@@ -14,7 +14,7 @@ import {
 } from "../utils/deserialize";
 import { BoardWithAddress, STAGE_NAMES, PROGRAM_ID } from "../types";
 
-const BOARD_MEMBERSHIP_SIZE = 67; // 1 + 32 + 32 + 1 + 1
+const BOARD_MEMBERSHIP_SIZE = 75; // 1 + 32 + 32 + 1 + 8 + 1 (includes total_score: u64)
 
 export const BoardList: React.FC = () => {
   const { connected, publicKey } = useWallet();
