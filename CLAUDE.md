@@ -111,11 +111,23 @@ For each increment:
 
 ### 6. Commit
 - Keep commits atomic and focused
-- Push to GitHub when ready for review
+- Push to GitHub
 
-### 7. Review
+### 7. Pull Request
+- Create PR with summary, root cause (if bug), and test plan
+- Link to issue (e.g., "Fixes GZA-5")
+
+### 8. Review
 - Wait for human review before merging
 - Address feedback in new commits (don't amend unless asked)
+
+### Deployment Notes
+
+| Change Type | Action Required |
+|-------------|-----------------|
+| **UI-only** | Rebuild and redeploy UI (`cd ui && npm run build`) |
+| **Program** | Requires `make deploy-upgrade` from local machine |
+| **Both** | Deploy program first, then rebuild UI |
 
 ---
 
