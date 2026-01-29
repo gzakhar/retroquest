@@ -34,8 +34,8 @@ pub const MAX_VALIDITY_SECONDS: i64 = 60 * 60 * 24 * 7;
 /// Default session validity: 1 hour in seconds
 pub const DEFAULT_VALIDITY_SECONDS: i64 = 60 * 60;
 
-/// Default top-up amount: 0.01 SOL in lamports
-pub const DEFAULT_TOP_UP_LAMPORTS: u64 = 10_000_000;
+/// Default top-up amount: 0.05 SOL in lamports
+pub const DEFAULT_TOP_UP_LAMPORTS: u64 = 50_000_000;
 
 // ============================================================================
 // Session Token Account
