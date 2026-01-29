@@ -155,7 +155,7 @@ export interface SessionTokenWithAddress {
 // Session key constants
 export const DEFAULT_SESSION_VALIDITY_SECONDS = 3600; // 1 hour
 export const MAX_SESSION_VALIDITY_SECONDS = 7 * 24 * 60 * 60; // 7 days
-export const DEFAULT_TOP_UP_LAMPORTS = 10_000_000n; // 0.01 SOL
+export const DEFAULT_TOP_UP_LAMPORTS = 50_000_000n; // 0.05 SOL
 
 // Program ID (deployed on devnet)
 export const PROGRAM_ID = new PublicKey(
