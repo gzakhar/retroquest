@@ -177,6 +177,9 @@ export function SessionProvider({ children }: SessionProviderProps) {
     error: null,
   });
 
+  // Ref to track current ephemeral keypair for stable fetchBalance callback
+  const ephemeralKeypairRef = useRef<Keypair | null>(null);
+
   // Update time remaining every second
   useEffect(() => {
     if (!state.sessionToken) return;
@@ -214,13 +217,18 @@ export function SessionProvider({ children }: SessionProviderProps) {
     }
   }, [connected]);
 
+  // Keep ref in sync with state - allows fetchBalance to have stable identity
+  useEffect(() => {
+    ephemeralKeypairRef.current = state.ephemeralKeypair;
+  }, [state.ephemeralKeypair]);
+
   // Fetch balance of session signer
+  // Uses ref instead of state to maintain stable callback identity
   const fetchBalance = useCallback(async () => {
-    if (!state.ephemeralKeypair) return;
+    const keypair = ephemeralKeypairRef.current;
+    if (!keypair) return;
     try {
-      const lamports = await connection.getBalance(
-        state.ephemeralKeypair.publicKey
-      );
+      const lamports = await connection.getBalance(keypair.publicKey);
       setState((prev) => ({
         ...prev,
         balance: lamports / LAMPORTS_PER_SOL,
@@ -228,17 +236,17 @@ export function SessionProvider({ children }: SessionProviderProps) {
     } catch (error) {
       console.warn("Failed to fetch session balance:", error);
     }
-  }, [connection, state.ephemeralKeypair]);
+  }, [connection]);
 
   // Poll balance every 10 seconds when session is active
   useEffect(() => {
-    if (!state.isActive || !state.ephemeralKeypair) return;
+    if (!state.isActive) return;
 
     fetchBalance(); // Initial fetch
     const interval = setInterval(fetchBalance, 10000);
 
     return () => clearInterval(interval);
-  }, [state.isActive, state.ephemeralKeypair, fetchBalance]);
+  }, [state.isActive, fetchBalance]);
 
   // Track if we've already attempted to restore session for this wallet
   const restorationAttemptedRef = useRef<string | null>(null);
