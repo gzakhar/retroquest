@@ -32,6 +32,8 @@ const CREATE_ACTION_ITEM = 10;
 const CAST_VERIFICATION_VOTE = 11;
 const CREATE_SESSION = 12;
 const REVOKE_SESSION = 13;
+const CREATE_IDENTITY = 14;
+const UPDATE_IDENTITY = 15;
 
 // Borsh schema definitions
 const createBoardSchema = {
@@ -111,6 +113,12 @@ const createSessionSchema = {
   },
 };
 
+const identitySchema = {
+  struct: {
+    username: "string",
+  },
+};
+
 function serializeInstruction(discriminator: number, payload?: Buffer): Buffer {
   if (payload) {
     return Buffer.concat([Buffer.from([discriminator]), payload]);
@@ -122,7 +130,10 @@ export function createInitFacilitatorRegistryInstruction(
   facilitator: PublicKey,
   programId: PublicKey
 ): TransactionInstruction {
-  const [facilitatorRegistry] = findFacilitatorRegistryPda(facilitator, programId);
+  const [facilitatorRegistry] = findFacilitatorRegistryPda(
+    facilitator,
+    programId
+  );
 
   return new TransactionInstruction({
     keys: [
@@ -456,7 +467,10 @@ export function createCastVerificationVoteInstruction(
   sessionToken?: PublicKey
 ): TransactionInstruction {
   const payload = { action_item_id: actionItemId, approved };
-  const serialized = borsh.serialize(castVerificationVoteSchema as any, payload);
+  const serialized = borsh.serialize(
+    castVerificationVoteSchema as any,
+    payload
+  );
 
   const keys = [
     { pubkey: board, isSigner: false, isWritable: false },
@@ -521,6 +535,47 @@ export function createRevokeSessionInstruction(
   });
 }
 
+// Identity instructions
+
+export function createCreateIdentityInstruction(
+  identity: PublicKey,
+  authority: PublicKey,
+  username: string,
+  programId: PublicKey
+): TransactionInstruction {
+  const payload = { username };
+  const serialized = borsh.serialize(identitySchema as any, payload);
+
+  return new TransactionInstruction({
+    keys: [
+      { pubkey: identity, isSigner: false, isWritable: true },
+      { pubkey: authority, isSigner: true, isWritable: true },
+      { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+    ],
+    programId,
+    data: serializeInstruction(CREATE_IDENTITY, Buffer.from(serialized)),
+  });
+}
+
+export function createUpdateIdentityInstruction(
+  identity: PublicKey,
+  authority: PublicKey,
+  username: string,
+  programId: PublicKey
+): TransactionInstruction {
+  const payload = { username };
+  const serialized = borsh.serialize(identitySchema as any, payload);
+
+  return new TransactionInstruction({
+    keys: [
+      { pubkey: identity, isSigner: false, isWritable: true },
+      { pubkey: authority, isSigner: true, isWritable: false },
+    ],
+    programId,
+    data: serializeInstruction(UPDATE_IDENTITY, Buffer.from(serialized)),
+  });
+}
+
 // Re-export PDA helpers for convenience
 export {
   findFacilitatorRegistryPda,
@@ -532,4 +587,6 @@ export {
   findActionItemPda,
   findVerificationVotePda,
   findSessionTokenPda,
-};
+} from "./pda";
+
+export { findParticipantIdentityPda } from "./pda";

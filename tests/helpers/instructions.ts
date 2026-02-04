@@ -13,6 +13,7 @@ import {
   findVoteRecordPda,
   findActionItemPda,
   findVerificationVotePda,
+  findParticipantIdentityPda,
 } from "./pda";
 
 // Instruction discriminators (must match instructions.rs)
@@ -28,6 +29,8 @@ const UNASSIGN_NOTE = 8;
 const CAST_VOTE = 9;
 const CREATE_ACTION_ITEM = 10;
 const CAST_VERIFICATION_VOTE = 11;
+const CREATE_IDENTITY = 14;
+const UPDATE_IDENTITY = 15;
 
 // Borsh schema definitions
 const createSessionSchema = {
@@ -97,6 +100,12 @@ const castVerificationVoteSchema = {
   struct: {
     action_item_id: "u64",
     approved: "bool",
+  },
+};
+
+const identitySchema = {
+  struct: {
+    username: "string",
   },
 };
 
@@ -392,5 +401,44 @@ export function createCastVerificationVoteInstruction(
     ],
     programId,
     data: serializeInstruction(CAST_VERIFICATION_VOTE, Buffer.from(serialized)),
+  });
+}
+
+export function createCreateIdentityInstruction(
+  identity: PublicKey,
+  authority: PublicKey,
+  username: string,
+  programId: PublicKey
+): TransactionInstruction {
+  const payload = { username };
+  const serialized = borsh.serialize(identitySchema, payload);
+
+  return new TransactionInstruction({
+    keys: [
+      { pubkey: identity, isSigner: false, isWritable: true },
+      { pubkey: authority, isSigner: true, isWritable: true },
+      { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+    ],
+    programId,
+    data: serializeInstruction(CREATE_IDENTITY, Buffer.from(serialized)),
+  });
+}
+
+export function createUpdateIdentityInstruction(
+  identity: PublicKey,
+  authority: PublicKey,
+  username: string,
+  programId: PublicKey
+): TransactionInstruction {
+  const payload = { username };
+  const serialized = borsh.serialize(identitySchema, payload);
+
+  return new TransactionInstruction({
+    keys: [
+      { pubkey: identity, isSigner: false, isWritable: true },
+      { pubkey: authority, isSigner: true, isWritable: false },
+    ],
+    programId,
+    data: serializeInstruction(UPDATE_IDENTITY, Buffer.from(serialized)),
   });
 }

@@ -35,7 +35,9 @@ export function useProgram() {
           console.error("Simulation failed:", simulation.value.err);
           console.error("Simulation logs:", simulation.value.logs);
           throw new Error(
-            `Transaction simulation failed: ${JSON.stringify(simulation.value.err)}\nLogs: ${simulation.value.logs?.join("\n")}`
+            `Transaction simulation failed: ${JSON.stringify(
+              simulation.value.err
+            )}\nLogs: ${simulation.value.logs?.join("\n")}`
           );
         }
         console.log("Simulation successful, logs:", simulation.value.logs);
@@ -107,7 +109,9 @@ export function useProgram() {
           return sendInstructions(instructions);
         } else {
           throw new Error(
-            `Session balance too low (${balance / 1e9} SOL). Need at least ${estimatedFee / 1e9} SOL for transaction fees.`
+            `Session balance too low (${balance / 1e9} SOL). Need at least ${
+              estimatedFee / 1e9
+            } SOL for transaction fees.`
           );
         }
       }

@@ -3,10 +3,14 @@
 
 import { Connection, PublicKey } from "@solana/web3.js";
 
-const SESSION_ADDRESS = process.argv[2] || "8uUV6SAupBTvFR4bk59hsWdhnR3X6c2cq19AQKboh9hw";
+const SESSION_ADDRESS =
+  process.argv[2] || "8uUV6SAupBTvFR4bk59hsWdhnR3X6c2cq19AQKboh9hw";
 
 async function main() {
-  const connection = new Connection("https://api.devnet.solana.com", "confirmed");
+  const connection = new Connection(
+    "https://api.devnet.solana.com",
+    "confirmed"
+  );
   const sessionPubkey = new PublicKey(SESSION_ADDRESS);
 
   console.log("Fetching session:", SESSION_ADDRESS);
@@ -110,7 +114,10 @@ async function main() {
 
   // stage_changed_at_slot (8 bytes)
   const stageChangedAtSlot = data.readBigUInt64LE(offset);
-  console.log(`[${offset}] stage_changed_at_slot:`, stageChangedAtSlot.toString());
+  console.log(
+    `[${offset}] stage_changed_at_slot:`,
+    stageChangedAtSlot.toString()
+  );
   offset += 8;
 
   // bump (1 byte)

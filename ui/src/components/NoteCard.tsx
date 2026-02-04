@@ -1,20 +1,20 @@
 import React from "react";
 import { NoteWithAddress } from "../types";
+import { UsernameDisplay } from "./UsernameDisplay";
 
 interface Props {
   note: NoteWithAddress;
   categoryName?: string;
   showCategory?: boolean;
+  identities?: Map<string, string>;
 }
 
 export const NoteCard: React.FC<Props> = ({
   note,
   categoryName,
   showCategory = false,
+  identities = new Map(),
 }) => {
-  // Truncate author address for display
-  const authorShort = `${note.data.author.toString().slice(0, 4)}...${note.data.author.toString().slice(-4)}`;
-
   return (
     <div className="bg-gray-800 rounded-lg p-3 border border-gray-700 hover:border-gray-600 transition-colors">
       {showCategory && categoryName && (
@@ -22,7 +22,7 @@ export const NoteCard: React.FC<Props> = ({
       )}
       <p className="text-gray-200 text-sm">{note.data.content}</p>
       <div className="flex justify-between items-center mt-2 text-xs text-gray-500">
-        <span className="font-mono">{authorShort}</span>
+        <UsernameDisplay address={note.data.author} identities={identities} />
         {note.data.groupId !== null && (
           <span className="text-purple-400">Grouped</span>
         )}

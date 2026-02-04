@@ -23,7 +23,7 @@ export const BoardView: React.FC = () => {
   const { canSign, getSessionSigner, getSessionTokenAddress } = useSession();
 
   const boardAddress = id ? new PublicKey(id) : null;
-  const { board, notes, groups, actionItems, membership, loading, error, refresh } =
+  const { board, notes, groups, actionItems, membership, identities, loading, error, refresh } =
     useBoard(boardAddress);
 
   const [advancing, setAdvancing] = React.useState(false);
@@ -159,6 +159,7 @@ export const BoardView: React.FC = () => {
       boardAddress: boardAddress!,
       refresh,
       isOnAllowlist: isOnAllowlist || false,
+      identities,
     };
 
     switch (board.stage) {

@@ -10,6 +10,7 @@ pub const MAX_CATEGORY_NAME_LEN: usize = 32;
 pub const VOTING_CREDITS_DEFAULT: u8 = 5;
 pub const MAX_ACTION_DESCRIPTION_CHARS: usize = 280;
 pub const MAX_VERIFIERS: usize = 7; // MAX_PARTICIPANTS - 1 (owner can't verify)
+pub const MAX_USERNAME_CHARS: usize = 32;
 
 // PDA Seeds
 pub const FACILITATOR_REGISTRY_SEED: &[u8] = b"facilitator_registry";
@@ -20,6 +21,7 @@ pub const GROUP_SEED: &[u8] = b"group";
 pub const VOTE_SEED: &[u8] = b"vote";
 pub const ACTION_ITEM_SEED: &[u8] = b"action_item";
 pub const VERIFICATION_VOTE_SEED: &[u8] = b"verification_vote";
+pub const PARTICIPANT_IDENTITY_SEED: &[u8] = b"participant";
 
 #[derive(BorshSerialize, BorshDeserialize, Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
@@ -197,4 +199,19 @@ pub struct VerificationVote {
 
 impl VerificationVote {
     pub const LEN: usize = 1 + 32 + 32 + 1 + 8 + 1;
+}
+
+/// ParticipantIdentity stores a user's display name.
+/// One identity per wallet, reusable across all boards.
+#[derive(BorshSerialize, BorshDeserialize, Debug, Clone)]
+pub struct ParticipantIdentity {
+    pub is_initialized: bool,
+    pub authority: Pubkey,
+    pub username: String,
+    pub bump: u8,
+}
+
+impl ParticipantIdentity {
+    // is_initialized(1) + authority(32) + username(4 + MAX_USERNAME_CHARS) + bump(1)
+    pub const MAX_LEN: usize = 1 + 32 + (4 + MAX_USERNAME_CHARS) + 1;
 }

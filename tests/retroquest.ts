@@ -24,8 +24,14 @@ describe("retroquest", () => {
     // Airdrop SOL to participants for transaction fees
     const airdropAmount = 2 * anchor.web3.LAMPORTS_PER_SOL;
 
-    await provider.connection.requestAirdrop(participant1.publicKey, airdropAmount);
-    await provider.connection.requestAirdrop(participant2.publicKey, airdropAmount);
+    await provider.connection.requestAirdrop(
+      participant1.publicKey,
+      airdropAmount
+    );
+    await provider.connection.requestAirdrop(
+      participant2.publicKey,
+      airdropAmount
+    );
 
     // Wait for airdrops to confirm
     await new Promise((resolve) => setTimeout(resolve, 1000));
@@ -48,15 +54,21 @@ describe("retroquest", () => {
         })
         .rpc();
 
-      const registry = await program.account.teamRegistry.fetch(teamRegistryPda);
-      expect(registry.teamAuthority.toString()).to.equal(teamAuthority.publicKey.toString());
+      const registry = await program.account.teamRegistry.fetch(
+        teamRegistryPda
+      );
+      expect(registry.teamAuthority.toString()).to.equal(
+        teamAuthority.publicKey.toString()
+      );
       expect(registry.sessionCount.toNumber()).to.equal(0);
     });
   });
 
   describe("Step 2: Create Session", () => {
     it("should create a retro session with categories and credits", async () => {
-      const registry = await program.account.teamRegistry.fetch(teamRegistryPda);
+      const registry = await program.account.teamRegistry.fetch(
+        teamRegistryPda
+      );
       const sessionIndex = registry.sessionCount;
 
       [sessionPda] = PublicKey.findProgramAddressSync(
@@ -100,7 +112,11 @@ describe("retroquest", () => {
 
     it("should add participant1 to allowlist", async () => {
       [allowlistEntry1Pda] = PublicKey.findProgramAddressSync(
-        [Buffer.from("allowlist"), sessionPda.toBuffer(), participant1.publicKey.toBuffer()],
+        [
+          Buffer.from("allowlist"),
+          sessionPda.toBuffer(),
+          participant1.publicKey.toBuffer(),
+        ],
         program.programId
       );
 
@@ -114,14 +130,22 @@ describe("retroquest", () => {
         })
         .rpc();
 
-      const entry = await program.account.allowlistEntry.fetch(allowlistEntry1Pda);
-      expect(entry.participant.toString()).to.equal(participant1.publicKey.toString());
+      const entry = await program.account.allowlistEntry.fetch(
+        allowlistEntry1Pda
+      );
+      expect(entry.participant.toString()).to.equal(
+        participant1.publicKey.toString()
+      );
       expect(entry.allowed).to.be.true;
     });
 
     it("should add participant2 to allowlist", async () => {
       [allowlistEntry2Pda] = PublicKey.findProgramAddressSync(
-        [Buffer.from("allowlist"), sessionPda.toBuffer(), participant2.publicKey.toBuffer()],
+        [
+          Buffer.from("allowlist"),
+          sessionPda.toBuffer(),
+          participant2.publicKey.toBuffer(),
+        ],
         program.programId
       );
 
@@ -135,13 +159,19 @@ describe("retroquest", () => {
         })
         .rpc();
 
-      const entry = await program.account.allowlistEntry.fetch(allowlistEntry2Pda);
+      const entry = await program.account.allowlistEntry.fetch(
+        allowlistEntry2Pda
+      );
       expect(entry.allowed).to.be.true;
     });
 
     it("should allow participant1 to join the session", async () => {
       [participantEntry1Pda] = PublicKey.findProgramAddressSync(
-        [Buffer.from("participant"), sessionPda.toBuffer(), participant1.publicKey.toBuffer()],
+        [
+          Buffer.from("participant"),
+          sessionPda.toBuffer(),
+          participant1.publicKey.toBuffer(),
+        ],
         program.programId
       );
 
@@ -157,14 +187,20 @@ describe("retroquest", () => {
         .signers([participant1])
         .rpc();
 
-      const entry = await program.account.participantEntry.fetch(participantEntry1Pda);
+      const entry = await program.account.participantEntry.fetch(
+        participantEntry1Pda
+      );
       expect(entry.joined).to.be.true;
       expect(entry.notesSubmitted).to.equal(0);
     });
 
     it("should allow participant2 to join the session", async () => {
       [participantEntry2Pda] = PublicKey.findProgramAddressSync(
-        [Buffer.from("participant"), sessionPda.toBuffer(), participant2.publicKey.toBuffer()],
+        [
+          Buffer.from("participant"),
+          sessionPda.toBuffer(),
+          participant2.publicKey.toBuffer(),
+        ],
         program.programId
       );
 
@@ -192,7 +228,11 @@ describe("retroquest", () => {
 
     before(() => {
       [participantEntry1Pda] = PublicKey.findProgramAddressSync(
-        [Buffer.from("participant"), sessionPda.toBuffer(), participant1.publicKey.toBuffer()],
+        [
+          Buffer.from("participant"),
+          sessionPda.toBuffer(),
+          participant1.publicKey.toBuffer(),
+        ],
         program.programId
       );
     });
@@ -278,7 +318,11 @@ describe("retroquest", () => {
 
     before(() => {
       [participantEntry1Pda] = PublicKey.findProgramAddressSync(
-        [Buffer.from("participant"), sessionPda.toBuffer(), participant1.publicKey.toBuffer()],
+        [
+          Buffer.from("participant"),
+          sessionPda.toBuffer(),
+          participant1.publicKey.toBuffer(),
+        ],
         program.programId
       );
 
@@ -381,11 +425,19 @@ describe("retroquest", () => {
 
     before(() => {
       [participantEntry1Pda] = PublicKey.findProgramAddressSync(
-        [Buffer.from("participant"), sessionPda.toBuffer(), participant1.publicKey.toBuffer()],
+        [
+          Buffer.from("participant"),
+          sessionPda.toBuffer(),
+          participant1.publicKey.toBuffer(),
+        ],
         program.programId
       );
       [participantEntry2Pda] = PublicKey.findProgramAddressSync(
-        [Buffer.from("participant"), sessionPda.toBuffer(), participant2.publicKey.toBuffer()],
+        [
+          Buffer.from("participant"),
+          sessionPda.toBuffer(),
+          participant2.publicKey.toBuffer(),
+        ],
         program.programId
       );
       [group0Pda] = PublicKey.findProgramAddressSync(
@@ -496,7 +548,11 @@ describe("retroquest", () => {
 
     before(() => {
       [participantEntry1Pda] = PublicKey.findProgramAddressSync(
-        [Buffer.from("participant"), sessionPda.toBuffer(), participant1.publicKey.toBuffer()],
+        [
+          Buffer.from("participant"),
+          sessionPda.toBuffer(),
+          participant1.publicKey.toBuffer(),
+        ],
         program.programId
       );
       [note1Pda] = PublicKey.findProgramAddressSync(

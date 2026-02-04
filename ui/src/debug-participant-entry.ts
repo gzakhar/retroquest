@@ -3,18 +3,25 @@
 
 import { Connection, PublicKey } from "@solana/web3.js";
 
-const PROGRAM_ID = new PublicKey("52vL4fE1dqriKmGj7MddAvSkg2a7QvWcsFt7159EmbbC");
+const PROGRAM_ID = new PublicKey(
+  "52vL4fE1dqriKmGj7MddAvSkg2a7QvWcsFt7159EmbbC"
+);
 const PARTICIPANT_SEED = Buffer.from("participant");
 
 const SESSION_ADDRESS = process.argv[2];
 const PARTICIPANT_WALLET = process.argv[3]; // Optional: specific wallet to check
 
 if (!SESSION_ADDRESS) {
-  console.log("Usage: npx ts-node src/debug-participant-entry.ts <session-address> [participant-wallet]");
+  console.log(
+    "Usage: npx ts-node src/debug-participant-entry.ts <session-address> [participant-wallet]"
+  );
   process.exit(1);
 }
 
-function findParticipantEntryPda(session: PublicKey, participant: PublicKey): [PublicKey, number] {
+function findParticipantEntryPda(
+  session: PublicKey,
+  participant: PublicKey
+): [PublicKey, number] {
   return PublicKey.findProgramAddressSync(
     [PARTICIPANT_SEED, session.toBuffer(), participant.toBuffer()],
     PROGRAM_ID
@@ -43,7 +50,9 @@ function readStringVec(buffer: Buffer, offset: number): [string[], number] {
   for (let i = 0; i < count; i++) {
     const strLen = buffer.readUInt32LE(currentOffset);
     currentOffset += 4;
-    const str = buffer.slice(currentOffset, currentOffset + strLen).toString("utf8");
+    const str = buffer
+      .slice(currentOffset, currentOffset + strLen)
+      .toString("utf8");
     strings.push(str);
     currentOffset += strLen;
   }
@@ -51,7 +60,10 @@ function readStringVec(buffer: Buffer, offset: number): [string[], number] {
 }
 
 async function main() {
-  const connection = new Connection("https://api.devnet.solana.com", "confirmed");
+  const connection = new Connection(
+    "https://api.devnet.solana.com",
+    "confirmed"
+  );
   const sessionPubkey = new PublicKey(SESSION_ADDRESS);
 
   console.log("=== Session Analysis ===");
@@ -134,17 +146,23 @@ async function main() {
     console.log("\n=== Checking Specific Wallet ===");
     console.log("Wallet:", PARTICIPANT_WALLET);
 
-    const isInAllowlist = allowlist.some(pk => pk.equals(participantPubkey));
+    const isInAllowlist = allowlist.some((pk) => pk.equals(participantPubkey));
     console.log("In allowlist:", isInAllowlist);
 
-    const [pda, bump] = findParticipantEntryPda(sessionPubkey, participantPubkey);
+    const [pda, bump] = findParticipantEntryPda(
+      sessionPubkey,
+      participantPubkey
+    );
     console.log("PDA:", pda.toString());
 
     const entryAccount = await connection.getAccountInfo(pda);
     if (entryAccount) {
       console.log("ParticipantEntry exists!");
       const entryData = Buffer.from(entryAccount.data);
-      console.log("  participant stored:", readPublicKey(entryData, 33).toString());
+      console.log(
+        "  participant stored:",
+        readPublicKey(entryData, 33).toString()
+      );
     } else {
       console.log("ParticipantEntry does NOT exist");
     }
@@ -158,7 +176,9 @@ async function main() {
       { memcmp: { offset: 1, bytes: sessionPubkey.toBase58() } }, // session field at offset 1
     ],
   });
-  console.log(`Found ${allEntries.length} ParticipantEntry accounts for this session:`);
+  console.log(
+    `Found ${allEntries.length} ParticipantEntry accounts for this session:`
+  );
   for (const entry of allEntries) {
     const entryData = Buffer.from(entry.account.data);
     const participant = readPublicKey(entryData, 33);

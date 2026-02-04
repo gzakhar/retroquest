@@ -19,6 +19,7 @@ import {
   ActionItemStatus,
   PROGRAM_ID,
 } from "../../types";
+import { UsernameDisplay, getDisplayName } from "../UsernameDisplay";
 
 interface Props {
   board: RetroBoard;
@@ -29,6 +30,7 @@ interface Props {
   boardAddress: PublicKey;
   refresh: () => Promise<void>;
   isOnAllowlist: boolean;
+  identities?: Map<string, string>;
 }
 
 export const DiscussStage: React.FC<Props> = ({
@@ -39,6 +41,7 @@ export const DiscussStage: React.FC<Props> = ({
   boardAddress,
   refresh,
   isOnAllowlist,
+  identities = new Map(),
 }) => {
   const { publicKey } = useWallet();
   const { sendInstructions, sendInstructionsWithSession } = useProgram();
@@ -231,11 +234,6 @@ export const DiscussStage: React.FC<Props> = ({
     return actionItem.data.verifiers.some((v) => v.equals(publicKey));
   };
 
-  const shortenAddress = (address: PublicKey) => {
-    const str = address.toString();
-    return `${str.slice(0, 4)}...${str.slice(-4)}`;
-  };
-
   return (
     <div className="space-y-6">
       <div>
@@ -321,7 +319,7 @@ export const DiscussStage: React.FC<Props> = ({
                 <option value="">Select owner...</option>
                 {participantsForSelection.map((p) => (
                   <option key={p.toString()} value={p.toString()}>
-                    {shortenAddress(p)}
+                    {getDisplayName(p, identities)}
                   </option>
                 ))}
               </select>
@@ -344,7 +342,7 @@ export const DiscussStage: React.FC<Props> = ({
                           : "bg-gray-600 text-gray-300 hover:bg-gray-500"
                       }`}
                     >
-                      {shortenAddress(p)}
+                      {getDisplayName(p, identities)}
                     </button>
                   ))}
               </div>
@@ -422,7 +420,7 @@ export const DiscussStage: React.FC<Props> = ({
                           : "Pending"}
                       </span>
                       <span className="text-gray-400 text-sm">
-                        Owner: {shortenAddress(item.data.owner)}
+                        Owner: <UsernameDisplay address={item.data.owner} identities={identities} />
                       </span>
                     </div>
                     <p className="text-white mb-2">{item.data.description}</p>
