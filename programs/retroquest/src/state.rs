@@ -23,6 +23,19 @@ pub const ACTION_ITEM_SEED: &[u8] = b"action_item";
 pub const VERIFICATION_VOTE_SEED: &[u8] = b"verification_vote";
 pub const PARTICIPANT_IDENTITY_SEED: &[u8] = b"participant";
 
+// Account Type Discriminators (offset 0)
+// These uniquely identify each account type to prevent type confusion
+pub const DISCRIMINATOR_FACILITATOR_REGISTRY: u8 = 1;
+pub const DISCRIMINATOR_RETRO_BOARD: u8 = 2;
+pub const DISCRIMINATOR_BOARD_MEMBERSHIP: u8 = 3;
+pub const DISCRIMINATOR_NOTE: u8 = 4;
+pub const DISCRIMINATOR_GROUP: u8 = 5;
+pub const DISCRIMINATOR_VOTE_RECORD: u8 = 6;
+pub const DISCRIMINATOR_ACTION_ITEM: u8 = 7;
+pub const DISCRIMINATOR_VERIFICATION_VOTE: u8 = 8;
+pub const DISCRIMINATOR_PARTICIPANT_IDENTITY: u8 = 9;
+pub const DISCRIMINATOR_SESSION_TOKEN: u8 = 10;
+
 #[derive(BorshSerialize, BorshDeserialize, Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
 pub enum BoardStage {
@@ -52,6 +65,7 @@ pub enum ActionItemStatus {
 /// Used for deterministic board PDA derivation.
 #[derive(BorshSerialize, BorshDeserialize, Debug, Clone)]
 pub struct FacilitatorRegistry {
+    pub discriminator: u8,
     pub is_initialized: bool,
     pub facilitator: Pubkey,
     pub board_count: u64,
@@ -59,12 +73,14 @@ pub struct FacilitatorRegistry {
 }
 
 impl FacilitatorRegistry {
-    pub const LEN: usize = 1 + 32 + 8 + 1;
+    // discriminator(1) + is_initialized(1) + facilitator(32) + board_count(8) + bump(1)
+    pub const LEN: usize = 1 + 1 + 32 + 8 + 1;
 }
 
 /// RetroBoard is the main entity where participants post notes and vote.
 #[derive(BorshSerialize, BorshDeserialize, Debug, Clone)]
 pub struct RetroBoard {
+    pub discriminator: u8,
     pub is_initialized: bool,
     pub facilitator: Pubkey,
     pub board_index: u64,
@@ -83,10 +99,10 @@ pub struct RetroBoard {
 
 impl RetroBoard {
     // Base size without dynamic Vecs
-    // is_initialized(1) + facilitator(32) + board_index(8) +
+    // discriminator(1) + is_initialized(1) + facilitator(32) + board_index(8) +
     // stage(1) + closed(1) + voting_credits(1) +
     // note_count(8) + group_count(8) + action_item_count(8) + created_at_slot(8) + stage_changed_at_slot(8) + bump(1)
-    pub const BASE_LEN: usize = 1 + 32 + 8 + 1 + 1 + 1 + 8 + 8 + 8 + 8 + 8 + 1;
+    pub const BASE_LEN: usize = 1 + 1 + 32 + 8 + 1 + 1 + 1 + 8 + 8 + 8 + 8 + 8 + 1;
 
     // Categories: vec_len(4) + MAX_CATEGORIES * (str_len(4) + MAX_CATEGORY_NAME_LEN)
     pub const CATEGORIES_LEN: usize = 4 + (MAX_CATEGORIES * (4 + MAX_CATEGORY_NAME_LEN));
@@ -101,6 +117,7 @@ impl RetroBoard {
 /// Enables board discovery and tracks voting credits spent.
 #[derive(BorshSerialize, BorshDeserialize, Debug, Clone)]
 pub struct BoardMembership {
+    pub discriminator: u8,
     pub is_initialized: bool,
     pub board: Pubkey,
     pub participant: Pubkey,
@@ -110,11 +127,13 @@ pub struct BoardMembership {
 }
 
 impl BoardMembership {
-    pub const LEN: usize = 1 + 32 + 32 + 1 + 8 + 1;
+    // discriminator(1) + is_initialized(1) + board(32) + participant(32) + credits_spent(1) + total_score(8) + bump(1)
+    pub const LEN: usize = 1 + 1 + 32 + 32 + 1 + 8 + 1;
 }
 
 #[derive(BorshSerialize, BorshDeserialize, Debug, Clone)]
 pub struct Note {
+    pub discriminator: u8,
     pub is_initialized: bool,
     pub board: Pubkey,
     pub note_id: u64,
@@ -127,11 +146,13 @@ pub struct Note {
 }
 
 impl Note {
-    pub const MAX_LEN: usize = 1 + 32 + 8 + 32 + 1 + (4 + MAX_NOTE_CHARS) + 8 + 9 + 1;
+    // discriminator(1) + is_initialized(1) + board(32) + note_id(8) + author(32) + category_id(1) + content(4 + MAX) + created_at_slot(8) + group_id(9) + bump(1)
+    pub const MAX_LEN: usize = 1 + 1 + 32 + 8 + 32 + 1 + (4 + MAX_NOTE_CHARS) + 8 + 9 + 1;
 }
 
 #[derive(BorshSerialize, BorshDeserialize, Debug, Clone)]
 pub struct Group {
+    pub discriminator: u8,
     pub is_initialized: bool,
     pub board: Pubkey,
     pub group_id: u64,
@@ -142,11 +163,13 @@ pub struct Group {
 }
 
 impl Group {
-    pub const MAX_LEN: usize = 1 + 32 + 8 + (4 + MAX_GROUP_TITLE_CHARS) + 32 + 8 + 1;
+    // discriminator(1) + is_initialized(1) + board(32) + group_id(8) + title(4 + MAX) + created_by(32) + vote_tally(8) + bump(1)
+    pub const MAX_LEN: usize = 1 + 1 + 32 + 8 + (4 + MAX_GROUP_TITLE_CHARS) + 32 + 8 + 1;
 }
 
 #[derive(BorshSerialize, BorshDeserialize, Debug, Clone)]
 pub struct VoteRecord {
+    pub discriminator: u8,
     pub is_initialized: bool,
     pub board: Pubkey,
     pub participant: Pubkey,
@@ -156,13 +179,15 @@ pub struct VoteRecord {
 }
 
 impl VoteRecord {
-    pub const LEN: usize = 1 + 32 + 32 + 8 + 1 + 1;
+    // discriminator(1) + is_initialized(1) + board(32) + participant(32) + group_id(8) + credits_spent(1) + bump(1)
+    pub const LEN: usize = 1 + 1 + 32 + 32 + 8 + 1 + 1;
 }
 
 /// ActionItem represents a task committed to during a retrospective.
 /// Created during Discuss stage, verified after board is closed.
 #[derive(BorshSerialize, BorshDeserialize, Debug, Clone)]
 pub struct ActionItem {
+    pub discriminator: u8,
     pub is_initialized: bool,
     pub board: Pubkey,
     pub action_item_id: u64,
@@ -178,17 +203,18 @@ pub struct ActionItem {
 }
 
 impl ActionItem {
-    // is_initialized(1) + board(32) + action_item_id(8) +
+    // discriminator(1) + is_initialized(1) + board(32) + action_item_id(8) +
     // description(4 + MAX_ACTION_DESCRIPTION_CHARS) + owner(32) +
     // verifiers(4 + MAX_VERIFIERS * 32) + threshold(1) + approvals(1) +
     // status(1) + created_at_slot(8) + verified_at_slot(1 + 8) + bump(1)
-    pub const MAX_LEN: usize = 1 + 32 + 8 + (4 + MAX_ACTION_DESCRIPTION_CHARS) + 32
+    pub const MAX_LEN: usize = 1 + 1 + 32 + 8 + (4 + MAX_ACTION_DESCRIPTION_CHARS) + 32
         + (4 + MAX_VERIFIERS * 32) + 1 + 1 + 1 + 8 + 9 + 1;
 }
 
 /// VerificationVote records a verifier's vote on an action item.
 #[derive(BorshSerialize, BorshDeserialize, Debug, Clone)]
 pub struct VerificationVote {
+    pub discriminator: u8,
     pub is_initialized: bool,
     pub action_item: Pubkey,
     pub verifier: Pubkey,
@@ -198,13 +224,15 @@ pub struct VerificationVote {
 }
 
 impl VerificationVote {
-    pub const LEN: usize = 1 + 32 + 32 + 1 + 8 + 1;
+    // discriminator(1) + is_initialized(1) + action_item(32) + verifier(32) + approved(1) + voted_at_slot(8) + bump(1)
+    pub const LEN: usize = 1 + 1 + 32 + 32 + 1 + 8 + 1;
 }
 
 /// ParticipantIdentity stores a user's display name.
 /// One identity per wallet, reusable across all boards.
 #[derive(BorshSerialize, BorshDeserialize, Debug, Clone)]
 pub struct ParticipantIdentity {
+    pub discriminator: u8,
     pub is_initialized: bool,
     pub authority: Pubkey,
     pub username: String,
@@ -212,6 +240,6 @@ pub struct ParticipantIdentity {
 }
 
 impl ParticipantIdentity {
-    // is_initialized(1) + authority(32) + username(4 + MAX_USERNAME_CHARS) + bump(1)
-    pub const MAX_LEN: usize = 1 + 32 + (4 + MAX_USERNAME_CHARS) + 1;
+    // discriminator(1) + is_initialized(1) + authority(32) + username(4 + MAX_USERNAME_CHARS) + bump(1)
+    pub const MAX_LEN: usize = 1 + 1 + 32 + (4 + MAX_USERNAME_CHARS) + 1;
 }
