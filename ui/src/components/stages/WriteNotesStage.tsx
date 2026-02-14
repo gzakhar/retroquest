@@ -24,6 +24,7 @@ interface Props {
   boardAddress: PublicKey;
   refresh: () => Promise<void>;
   isOnAllowlist: boolean;
+  identities?: Map<string, string>;
 }
 
 export const WriteNotesStage: React.FC<Props> = ({
@@ -32,6 +33,7 @@ export const WriteNotesStage: React.FC<Props> = ({
   boardAddress,
   refresh,
   isOnAllowlist,
+  identities = new Map(),
 }) => {
   const { publicKey } = useWallet();
   const { sendInstructions, sendInstructionsWithSession } = useProgram();
@@ -170,7 +172,7 @@ export const WriteNotesStage: React.FC<Props> = ({
                 <p className="text-gray-500 text-sm italic">No notes yet</p>
               ) : (
                 categoryNotes.map((note) => (
-                  <NoteCard key={note.address.toString()} note={note} />
+                    <NoteCard key={note.address.toString()} note={note} identities={identities} />
                 ))
               )}
             </div>

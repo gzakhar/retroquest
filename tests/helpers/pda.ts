@@ -107,3 +107,17 @@ export function findVerificationVotePda(
     programId
   );
 }
+
+// Participant identity PDA (seeds: ["participant", authority])
+// Note: This reuses PARTICIPANT_SEED but with different PDA structure
+const PARTICIPANT_IDENTITY_SEED = Buffer.from("participant");
+
+export function findParticipantIdentityPda(
+  authority: PublicKey,
+  programId: PublicKey
+): [PublicKey, number] {
+  return PublicKey.findProgramAddressSync(
+    [PARTICIPANT_IDENTITY_SEED, authority.toBuffer()],
+    programId
+  );
+}

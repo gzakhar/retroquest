@@ -18,6 +18,8 @@ pub const CREATE_ACTION_ITEM: u8 = 10;
 pub const CAST_VERIFICATION_VOTE: u8 = 11;
 pub const CREATE_SESSION: u8 = 12;
 pub const REVOKE_SESSION: u8 = 13;
+pub const CREATE_IDENTITY: u8 = 14;
+pub const UPDATE_IDENTITY: u8 = 15;
 
 #[derive(Debug)]
 pub enum RetroInstruction {
@@ -141,6 +143,19 @@ pub enum RetroInstruction {
     /// 0. `[writable]` Session token PDA
     /// 1. `[signer]` Authority (user's wallet)
     RevokeSession,
+
+    /// Create a participant identity
+    /// Accounts:
+    /// 0. `[writable]` ParticipantIdentity PDA
+    /// 1. `[signer]` Authority (user's wallet)
+    /// 2. `[]` System program
+    CreateIdentity { username: String },
+
+    /// Update a participant identity
+    /// Accounts:
+    /// 0. `[writable]` ParticipantIdentity PDA
+    /// 1. `[signer]` Authority (user's wallet)
+    UpdateIdentity { username: String },
 }
 
 // Instruction data payloads for Borsh deserialization
@@ -208,6 +223,11 @@ struct CastVerificationVotePayload {
 struct CreateSessionPayload {
     valid_until: i64,
     top_up_lamports: Option<u64>,
+}
+
+#[derive(BorshDeserialize)]
+struct IdentityPayload {
+    username: String,
 }
 
 impl RetroInstruction {
@@ -327,6 +347,22 @@ impl RetroInstruction {
             }
 
             13 => Self::RevokeSession,
+
+            14 => {
+                let payload = IdentityPayload::try_from_slice(rest)
+                    .map_err(|_| ProgramError::InvalidInstructionData)?;
+                Self::CreateIdentity {
+                    username: payload.username,
+                }
+            }
+
+            15 => {
+                let payload = IdentityPayload::try_from_slice(rest)
+                    .map_err(|_| ProgramError::InvalidInstructionData)?;
+                Self::UpdateIdentity {
+                    username: payload.username,
+                }
+            }
 
             _ => return Err(ProgramError::InvalidInstructionData),
         })

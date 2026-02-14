@@ -28,6 +28,7 @@ interface Props {
   boardAddress: PublicKey;
   refresh: () => Promise<void>;
   isOnAllowlist: boolean;
+  identities?: Map<string, string>;
 }
 
 export const GroupStage: React.FC<Props> = ({
@@ -37,6 +38,7 @@ export const GroupStage: React.FC<Props> = ({
   boardAddress,
   refresh,
   isOnAllowlist,
+  identities = new Map(),
 }) => {
   const { publicKey } = useWallet();
   const { sendInstructions, sendInstructionsWithSession } = useProgram();
@@ -239,6 +241,7 @@ export const GroupStage: React.FC<Props> = ({
                   <NoteCard
                     note={note}
                     categoryName={board.categories[note.data.categoryId]}
+                    identities={identities}
                   />
                 </div>
               ))

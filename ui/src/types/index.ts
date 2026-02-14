@@ -120,6 +120,23 @@ export interface SessionToken {
   validUntil: bigint;
 }
 
+// Participant identity for display names
+export interface ParticipantIdentity {
+  isInitialized: boolean;
+  authority: PublicKey;
+  username: string;
+  bump: number;
+}
+
+export interface ParticipantIdentityWithAddress {
+  address: PublicKey;
+  data: ParticipantIdentity;
+}
+
+// Username validation constants
+export const MIN_USERNAME_CHARS = 3;
+export const MAX_USERNAME_CHARS = 32;
+
 // UI-specific types
 export interface BoardWithAddress {
   address: PublicKey;
@@ -159,5 +176,5 @@ export const DEFAULT_TOP_UP_LAMPORTS = 50_000_000n; // 0.05 SOL
 
 // Program ID (deployed on devnet)
 export const PROGRAM_ID = new PublicKey(
-  "52vL4fE1dqriKmGj7MddAvSkg2a7QvWcsFt7159EmbbC"
+  "CZ1xaAyDaXa5GyWPHCytfcJjnmJhuFnVeHJLrYiijVLx"
 );

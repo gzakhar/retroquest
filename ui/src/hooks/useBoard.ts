@@ -7,8 +7,15 @@ import {
   deserializeGroup,
   deserializeBoardMembership,
   deserializeActionItem,
+  deserializeParticipantIdentity,
 } from "../utils/deserialize";
-import { findNotePda, findGroupPda, findBoardMembershipPda, findActionItemPda } from "../utils/pda";
+import {
+  findNotePda,
+  findGroupPda,
+  findBoardMembershipPda,
+  findActionItemPda,
+  findParticipantIdentityPda,
+} from "../utils/pda";
 import {
   RetroBoard,
   NoteWithAddress,
@@ -24,6 +31,7 @@ interface BoardData {
   groups: GroupWithAddress[];
   actionItems: ActionItemWithAddress[];
   membership: BoardMembership | null;
+  identities: Map<string, string>; // wallet address -> username
   loading: boolean;
   error: string | null;
   refresh: () => Promise<void>;
@@ -35,8 +43,8 @@ export function useBoard(boardAddress: PublicKey | null): BoardData {
   const [notes, setNotes] = useState<NoteWithAddress[]>([]);
   const [groups, setGroups] = useState<GroupWithAddress[]>([]);
   const [actionItems, setActionItems] = useState<ActionItemWithAddress[]>([]);
-  const [membership, setMembership] =
-    useState<BoardMembership | null>(null);
+  const [membership, setMembership] = useState<BoardMembership | null>(null);
+  const [identities, setIdentities] = useState<Map<string, string>>(new Map());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
@@ -69,9 +77,7 @@ export function useBoard(boardAddress: PublicKey | null): BoardData {
         return;
       }
 
-      const boardData = deserializeBoard(
-        Buffer.from(boardAccountInfo.data)
-      );
+      const boardData = deserializeBoard(Buffer.from(boardAccountInfo.data));
       setBoard(boardData);
 
       // Fetch all notes
@@ -82,8 +88,9 @@ export function useBoard(boardAddress: PublicKey | null): BoardData {
       }
 
       if (noteAddresses.length > 0) {
-        const noteAccounts =
-          await connection.getMultipleAccountsInfo(noteAddresses);
+        const noteAccounts = await connection.getMultipleAccountsInfo(
+          noteAddresses
+        );
         const fetchedNotes: NoteWithAddress[] = [];
         noteAccounts.forEach((account, index) => {
           if (account) {
@@ -106,8 +113,9 @@ export function useBoard(boardAddress: PublicKey | null): BoardData {
       }
 
       if (groupAddresses.length > 0) {
-        const groupAccounts =
-          await connection.getMultipleAccountsInfo(groupAddresses);
+        const groupAccounts = await connection.getMultipleAccountsInfo(
+          groupAddresses
+        );
         const fetchedGroups: GroupWithAddress[] = [];
         groupAccounts.forEach((account, index) => {
           if (account) {
@@ -131,8 +139,9 @@ export function useBoard(boardAddress: PublicKey | null): BoardData {
       }
 
       if (actionItemAddresses.length > 0) {
-        const actionItemAccounts =
-          await connection.getMultipleAccountsInfo(actionItemAddresses);
+        const actionItemAccounts = await connection.getMultipleAccountsInfo(
+          actionItemAddresses
+        );
         const fetchedActionItems: ActionItemWithAddress[] = [];
         actionItemAccounts.forEach((account, index) => {
           if (account) {
@@ -162,6 +171,41 @@ export function useBoard(boardAddress: PublicKey | null): BoardData {
         } else {
           setMembership(null);
         }
+      }
+
+      // Batch fetch participant identities for all allowlisted participants
+      if (boardData.allowlist.length > 0) {
+        const identityAddresses: PublicKey[] = boardData.allowlist.map(
+          (participant) =>
+            findParticipantIdentityPda(participant, PROGRAM_ID)[0]
+        );
+
+        const identityAccounts = await connection.getMultipleAccountsInfo(
+          identityAddresses
+        );
+        const fetchedIdentities = new Map<string, string>();
+
+        identityAccounts.forEach((account, index) => {
+          if (account) {
+            try {
+              const identity = deserializeParticipantIdentity(
+                Buffer.from(account.data)
+              );
+              if (identity.isInitialized) {
+                fetchedIdentities.set(
+                  boardData.allowlist[index].toBase58(),
+                  identity.username
+                );
+              }
+            } catch (e) {
+              // Skip invalid identity accounts
+              console.warn("Failed to deserialize identity:", e);
+            }
+          }
+        });
+        setIdentities(fetchedIdentities);
+      } else {
+        setIdentities(new Map());
       }
 
       setIsInitialized(true);
@@ -194,7 +238,9 @@ export function useBoard(boardAddress: PublicKey | null): BoardData {
       if (!cancelled && retryCount.current < 3) {
         retryCount.current += 1;
         const delay = Math.min(2000 * Math.pow(2, retryCount.current), 10000);
-        console.log(`Retrying in ${delay}ms (attempt ${retryCount.current}/3)...`);
+        console.log(
+          `Retrying in ${delay}ms (attempt ${retryCount.current}/3)...`
+        );
         timeoutId = setTimeout(fetchWithRetry, delay);
       }
     };
@@ -221,6 +267,7 @@ export function useBoard(boardAddress: PublicKey | null): BoardData {
     groups,
     actionItems,
     membership,
+    identities,
     loading,
     error,
     refresh: fetchBoard,

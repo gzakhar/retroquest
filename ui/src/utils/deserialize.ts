@@ -10,6 +10,7 @@ import {
   ActionItem,
   VerificationVote,
   SessionToken,
+  ParticipantIdentity,
   BoardStage,
   ActionItemStatus,
 } from "../types";
@@ -61,7 +62,10 @@ function readPubkeyVec(buffer: Buffer, offset: number): [PublicKey[], number] {
 }
 
 // Helper to read Option<u64>
-function readOptionU64(buffer: Buffer, offset: number): [bigint | null, number] {
+function readOptionU64(
+  buffer: Buffer,
+  offset: number
+): [bigint | null, number] {
   const hasValue = buffer.readUInt8(offset);
   if (hasValue === 0) {
     return [null, 1];
@@ -69,7 +73,9 @@ function readOptionU64(buffer: Buffer, offset: number): [bigint | null, number] 
   return [readU64(buffer, offset + 1), 9];
 }
 
-export function deserializeFacilitatorRegistry(data: Buffer): FacilitatorRegistry {
+export function deserializeFacilitatorRegistry(
+  data: Buffer
+): FacilitatorRegistry {
   return {
     isInitialized: data.readUInt8(0) === 1,
     facilitator: readPublicKey(data, 1),
@@ -314,5 +320,34 @@ export function deserializeSessionToken(data: Buffer): SessionToken {
     targetProgram: readPublicKey(data, 32),
     sessionSigner: readPublicKey(data, 64),
     validUntil: BigInt(data.readBigInt64LE(96)),
+  };
+}
+
+// Participant identity layout:
+// is_initialized: 1 byte
+// authority: 32 bytes
+// username: 4 bytes (length) + variable
+// bump: 1 byte
+export function deserializeParticipantIdentity(
+  data: Buffer
+): ParticipantIdentity {
+  let offset = 0;
+
+  const isInitialized = data.readUInt8(offset) === 1;
+  offset += 1;
+
+  const authority = readPublicKey(data, offset);
+  offset += 32;
+
+  const [username, usernameLen] = readString(data, offset);
+  offset += usernameLen;
+
+  const bump = data.readUInt8(offset);
+
+  return {
+    isInitialized,
+    authority,
+    username,
+    bump,
   };
 }

@@ -79,6 +79,12 @@ pub fn process_instruction(
             top_up_lamports,
         } => process_create_session(program_id, accounts, valid_until, top_up_lamports),
         RetroInstruction::RevokeSession => process_revoke_session(program_id, accounts),
+        RetroInstruction::CreateIdentity { username } => {
+            process_create_identity(program_id, accounts, username)
+        }
+        RetroInstruction::UpdateIdentity { username } => {
+            process_update_identity(program_id, accounts, username)
+        }
     }
 }
 
@@ -1471,6 +1477,135 @@ fn process_revoke_session(
     session_token_info.data.borrow_mut().fill(0);
 
     msg!("Session revoked for authority: {}", authority_info.key);
+
+    Ok(())
+}
+
+// Username validation helper
+fn validate_username(username: &str) -> ProgramResult {
+    if username.len() < 3 {
+        return Err(RetroError::UsernameTooShort.into());
+    }
+    if username.len() > MAX_USERNAME_CHARS {
+        return Err(RetroError::UsernameTooLong.into());
+    }
+    if !username.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
+        return Err(RetroError::InvalidUsernameCharacters.into());
+    }
+    Ok(())
+}
+
+fn process_create_identity(
+    program_id: &Pubkey,
+    accounts: &[AccountInfo],
+    username: String,
+) -> ProgramResult {
+    msg!("Instruction: CreateIdentity");
+    let account_info_iter = &mut accounts.iter();
+
+    let identity_info = next_account_info(account_info_iter)?;
+    let authority_info = next_account_info(account_info_iter)?;
+    let system_program_info = next_account_info(account_info_iter)?;
+
+    // Authority must sign
+    if !authority_info.is_signer {
+        return Err(ProgramError::MissingRequiredSignature);
+    }
+
+    // Validate username
+    validate_username(&username)?;
+
+    // Derive and verify PDA
+    let (pda, bump) = Pubkey::find_program_address(
+        &[PARTICIPANT_IDENTITY_SEED, authority_info.key.as_ref()],
+        program_id,
+    );
+
+    if pda != *identity_info.key {
+        return Err(RetroError::InvalidPDA.into());
+    }
+
+    // Check if identity already exists
+    if !identity_info.data_is_empty() {
+        return Err(RetroError::AccountAlreadyInitialized.into());
+    }
+
+    // Create account
+    let rent = Rent::get()?;
+    let space = ParticipantIdentity::MAX_LEN;
+    let lamports = rent.minimum_balance(space);
+
+    invoke_signed(
+        &system_instruction::create_account(
+            authority_info.key,
+            identity_info.key,
+            lamports,
+            space as u64,
+            program_id,
+        ),
+        &[
+            authority_info.clone(),
+            identity_info.clone(),
+            system_program_info.clone(),
+        ],
+        &[&[PARTICIPANT_IDENTITY_SEED, authority_info.key.as_ref(), &[bump]]],
+    )?;
+
+    // Initialize identity
+    let identity = ParticipantIdentity {
+        is_initialized: true,
+        authority: *authority_info.key,
+        username,
+        bump,
+    };
+
+    identity.serialize(&mut *identity_info.data.borrow_mut())?;
+
+    msg!("Identity created for authority: {}", authority_info.key);
+
+    Ok(())
+}
+
+fn process_update_identity(
+    program_id: &Pubkey,
+    accounts: &[AccountInfo],
+    username: String,
+) -> ProgramResult {
+    msg!("Instruction: UpdateIdentity");
+    let account_info_iter = &mut accounts.iter();
+
+    let identity_info = next_account_info(account_info_iter)?;
+    let authority_info = next_account_info(account_info_iter)?;
+
+    // Authority must sign
+    if !authority_info.is_signer {
+        return Err(ProgramError::MissingRequiredSignature);
+    }
+
+    // Validate username
+    validate_username(&username)?;
+
+    // Verify account ownership
+    if identity_info.owner != program_id {
+        return Err(RetroError::InvalidAccountOwner.into());
+    }
+
+    // Deserialize and validate
+    let mut identity = ParticipantIdentity::deserialize(&mut &identity_info.data.borrow()[..])?;
+    if !identity.is_initialized {
+        return Err(RetroError::AccountNotInitialized.into());
+    }
+
+    // Verify authority matches
+    if identity.authority != *authority_info.key {
+        return Err(RetroError::UnauthorizedIdentityUpdate.into());
+    }
+
+    // Update username
+    identity.username = username;
+    identity.serialize(&mut *identity_info.data.borrow_mut())?;
+
+    msg!("Identity updated for authority: {}", authority_info.key);
 
     Ok(())
 }

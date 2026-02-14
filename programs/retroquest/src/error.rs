@@ -98,6 +98,18 @@ pub enum RetroError {
 
     #[error("Only the session authority can revoke the session")]
     UnauthorizedSessionRevoke,
+
+    #[error("Username must be at least 3 characters")]
+    UsernameTooShort,
+
+    #[error("Username exceeds maximum length (32 characters)")]
+    UsernameTooLong,
+
+    #[error("Username can only contain alphanumeric characters and underscores")]
+    InvalidUsernameCharacters,
+
+    #[error("Only the identity owner can update their username")]
+    UnauthorizedIdentityUpdate,
 }
 
 impl From<RetroError> for ProgramError {

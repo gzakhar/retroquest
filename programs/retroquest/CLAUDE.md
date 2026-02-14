@@ -9,7 +9,7 @@ This is a **native Solana program** using the `solana-program` crate directly—
 - Explicit PDA derivation and verification
 - Hand-written instruction parsing via Borsh
 
-Program ID: `52vL4fE1dqriKmGj7MddAvSkg2a7QvWcsFt7159EmbbC`
+Program ID: `CZ1xaAyDaXa5GyWPHCytfcJjnmJhuFnVeHJLrYiijVLx`
 
 ## File Structure
 
