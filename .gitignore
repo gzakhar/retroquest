@@ -5,6 +5,9 @@ node_modules/
 target/
 .anchor/
 
+# UI build artifacts
+ui/build/
+
 # Solana test validator
 test-ledger/
 
