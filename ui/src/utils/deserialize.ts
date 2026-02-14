@@ -13,6 +13,16 @@ import {
   ParticipantIdentity,
   BoardStage,
   ActionItemStatus,
+  DISCRIMINATOR_FACILITATOR_REGISTRY,
+  DISCRIMINATOR_RETRO_BOARD,
+  DISCRIMINATOR_BOARD_MEMBERSHIP,
+  DISCRIMINATOR_NOTE,
+  DISCRIMINATOR_GROUP,
+  DISCRIMINATOR_VOTE_RECORD,
+  DISCRIMINATOR_ACTION_ITEM,
+  DISCRIMINATOR_VERIFICATION_VOTE,
+  DISCRIMINATOR_PARTICIPANT_IDENTITY,
+  DISCRIMINATOR_SESSION_TOKEN,
 } from "../types";
 
 // Helper to read PublicKey from buffer
@@ -76,16 +86,30 @@ function readOptionU64(
 export function deserializeFacilitatorRegistry(
   data: Buffer
 ): FacilitatorRegistry {
+  const discriminator = data.readUInt8(0);
+  if (discriminator !== DISCRIMINATOR_FACILITATOR_REGISTRY) {
+    throw new Error(
+      `Invalid discriminator: expected ${DISCRIMINATOR_FACILITATOR_REGISTRY}, got ${discriminator}`
+    );
+  }
   return {
-    isInitialized: data.readUInt8(0) === 1,
-    facilitator: readPublicKey(data, 1),
-    boardCount: readU64(data, 33),
-    bump: data.readUInt8(41),
+    isInitialized: data.readUInt8(1) === 1,
+    facilitator: readPublicKey(data, 2),
+    boardCount: readU64(data, 34),
+    bump: data.readUInt8(42),
   };
 }
 
 export function deserializeBoard(data: Buffer): RetroBoard {
   let offset = 0;
+
+  const discriminator = data.readUInt8(offset);
+  if (discriminator !== DISCRIMINATOR_RETRO_BOARD) {
+    throw new Error(
+      `Invalid discriminator: expected ${DISCRIMINATOR_RETRO_BOARD}, got ${discriminator}`
+    );
+  }
+  offset += 1;
 
   const isInitialized = data.readUInt8(offset) === 1;
   offset += 1;
@@ -149,6 +173,14 @@ export function deserializeBoard(data: Buffer): RetroBoard {
 export function deserializeNote(data: Buffer): Note {
   let offset = 0;
 
+  const discriminator = data.readUInt8(offset);
+  if (discriminator !== DISCRIMINATOR_NOTE) {
+    throw new Error(
+      `Invalid discriminator: expected ${DISCRIMINATOR_NOTE}, got ${discriminator}`
+    );
+  }
+  offset += 1;
+
   const isInitialized = data.readUInt8(offset) === 1;
   offset += 1;
 
@@ -191,6 +223,14 @@ export function deserializeNote(data: Buffer): Note {
 export function deserializeGroup(data: Buffer): Group {
   let offset = 0;
 
+  const discriminator = data.readUInt8(offset);
+  if (discriminator !== DISCRIMINATOR_GROUP) {
+    throw new Error(
+      `Invalid discriminator: expected ${DISCRIMINATOR_GROUP}, got ${discriminator}`
+    );
+  }
+  offset += 1;
+
   const isInitialized = data.readUInt8(offset) === 1;
   offset += 1;
 
@@ -223,29 +263,49 @@ export function deserializeGroup(data: Buffer): Group {
 }
 
 export function deserializeBoardMembership(data: Buffer): BoardMembership {
+  const discriminator = data.readUInt8(0);
+  if (discriminator !== DISCRIMINATOR_BOARD_MEMBERSHIP) {
+    throw new Error(
+      `Invalid discriminator: expected ${DISCRIMINATOR_BOARD_MEMBERSHIP}, got ${discriminator}`
+    );
+  }
   return {
-    isInitialized: data.readUInt8(0) === 1,
-    board: readPublicKey(data, 1),
-    participant: readPublicKey(data, 33),
-    creditsSpent: data.readUInt8(65),
-    totalScore: readU64(data, 66),
-    bump: data.readUInt8(74),
+    isInitialized: data.readUInt8(1) === 1,
+    board: readPublicKey(data, 2),
+    participant: readPublicKey(data, 34),
+    creditsSpent: data.readUInt8(66),
+    totalScore: readU64(data, 67),
+    bump: data.readUInt8(75),
   };
 }
 
 export function deserializeVoteRecord(data: Buffer): VoteRecord {
+  const discriminator = data.readUInt8(0);
+  if (discriminator !== DISCRIMINATOR_VOTE_RECORD) {
+    throw new Error(
+      `Invalid discriminator: expected ${DISCRIMINATOR_VOTE_RECORD}, got ${discriminator}`
+    );
+  }
   return {
-    isInitialized: data.readUInt8(0) === 1,
-    board: readPublicKey(data, 1),
-    participant: readPublicKey(data, 33),
-    groupId: readU64(data, 65),
-    creditsSpent: data.readUInt8(73),
-    bump: data.readUInt8(74),
+    isInitialized: data.readUInt8(1) === 1,
+    board: readPublicKey(data, 2),
+    participant: readPublicKey(data, 34),
+    groupId: readU64(data, 66),
+    creditsSpent: data.readUInt8(74),
+    bump: data.readUInt8(75),
   };
 }
 
 export function deserializeActionItem(data: Buffer): ActionItem {
   let offset = 0;
+
+  const discriminator = data.readUInt8(offset);
+  if (discriminator !== DISCRIMINATOR_ACTION_ITEM) {
+    throw new Error(
+      `Invalid discriminator: expected ${DISCRIMINATOR_ACTION_ITEM}, got ${discriminator}`
+    );
+  }
+  offset += 1;
 
   const isInitialized = data.readUInt8(offset) === 1;
   offset += 1;
@@ -299,31 +359,45 @@ export function deserializeActionItem(data: Buffer): ActionItem {
 }
 
 export function deserializeVerificationVote(data: Buffer): VerificationVote {
+  const discriminator = data.readUInt8(0);
+  if (discriminator !== DISCRIMINATOR_VERIFICATION_VOTE) {
+    throw new Error(
+      `Invalid discriminator: expected ${DISCRIMINATOR_VERIFICATION_VOTE}, got ${discriminator}`
+    );
+  }
   return {
-    isInitialized: data.readUInt8(0) === 1,
-    actionItem: readPublicKey(data, 1),
-    verifier: readPublicKey(data, 33),
-    approved: data.readUInt8(65) === 1,
-    votedAtSlot: readU64(data, 66),
-    bump: data.readUInt8(74),
+    isInitialized: data.readUInt8(1) === 1,
+    actionItem: readPublicKey(data, 2),
+    verifier: readPublicKey(data, 34),
+    approved: data.readUInt8(66) === 1,
+    votedAtSlot: readU64(data, 67),
+    bump: data.readUInt8(75),
   };
 }
 
-// Session token layout (104 bytes):
+// Session token layout (105 bytes):
+// discriminator: 1 byte
 // authority: 32 bytes
 // target_program: 32 bytes
 // session_signer: 32 bytes
 // valid_until: 8 bytes (i64)
 export function deserializeSessionToken(data: Buffer): SessionToken {
+  const discriminator = data.readUInt8(0);
+  if (discriminator !== DISCRIMINATOR_SESSION_TOKEN) {
+    throw new Error(
+      `Invalid discriminator: expected ${DISCRIMINATOR_SESSION_TOKEN}, got ${discriminator}`
+    );
+  }
   return {
-    authority: readPublicKey(data, 0),
-    targetProgram: readPublicKey(data, 32),
-    sessionSigner: readPublicKey(data, 64),
-    validUntil: BigInt(data.readBigInt64LE(96)),
+    authority: readPublicKey(data, 1),
+    targetProgram: readPublicKey(data, 33),
+    sessionSigner: readPublicKey(data, 65),
+    validUntil: BigInt(data.readBigInt64LE(97)),
   };
 }
 
 // Participant identity layout:
+// discriminator: 1 byte
 // is_initialized: 1 byte
 // authority: 32 bytes
 // username: 4 bytes (length) + variable
@@ -332,6 +406,14 @@ export function deserializeParticipantIdentity(
   data: Buffer
 ): ParticipantIdentity {
   let offset = 0;
+
+  const discriminator = data.readUInt8(offset);
+  if (discriminator !== DISCRIMINATOR_PARTICIPANT_IDENTITY) {
+    throw new Error(
+      `Invalid discriminator: expected ${DISCRIMINATOR_PARTICIPANT_IDENTITY}, got ${discriminator}`
+    );
+  }
+  offset += 1;
 
   const isInitialized = data.readUInt8(offset) === 1;
   offset += 1;

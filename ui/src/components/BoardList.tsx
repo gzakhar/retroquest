@@ -12,9 +12,14 @@ import {
   deserializeBoard,
   deserializeBoardMembership,
 } from "../utils/deserialize";
-import { BoardWithAddress, STAGE_NAMES, PROGRAM_ID } from "../types";
-
-const BOARD_MEMBERSHIP_SIZE = 75; // 1 + 32 + 32 + 1 + 8 + 1 (includes total_score: u64)
+import {
+  BoardWithAddress,
+  STAGE_NAMES,
+  PROGRAM_ID,
+  BOARD_MEMBERSHIP_SIZE,
+  DISCRIMINATOR_BOARD_MEMBERSHIP,
+} from "../types";
+import bs58 from "bs58";
 
 export const BoardList: React.FC = () => {
   const { connected, publicKey } = useWallet();
@@ -100,10 +105,13 @@ export const BoardList: React.FC = () => {
       if (!publicKey) return [];
 
       // Query BoardMembership accounts where participant == connected wallet
+      // Use discriminator filter to ensure we only get BoardMembership accounts
+      // (VoteRecord and VerificationVote have same size but different discriminators)
       const membershipEntries = await connection.getProgramAccounts(PROGRAM_ID, {
         filters: [
           { dataSize: BOARD_MEMBERSHIP_SIZE },
-          { memcmp: { offset: 33, bytes: publicKey.toBase58() } },
+          { memcmp: { offset: 0, bytes: bs58.encode([DISCRIMINATOR_BOARD_MEMBERSHIP]) } },
+          { memcmp: { offset: 34, bytes: publicKey.toBase58() } },
         ],
       });
 

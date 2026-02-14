@@ -54,6 +54,8 @@ pub const SESSION_TOKEN_SEED: &[u8] = b"session_token";
 /// This seed order matches MagicBlock's session-keys for compatibility.
 #[derive(BorshSerialize, BorshDeserialize, Debug, Clone, Copy)]
 pub struct SessionToken {
+    /// Account type discriminator (set by consuming program)
+    pub discriminator: u8,
     /// The user's main wallet that created this session
     pub authority: Pubkey,
     /// The program this session is valid for
@@ -65,9 +67,9 @@ pub struct SessionToken {
 }
 
 impl SessionToken {
-    /// Account size in bytes (without Anchor discriminator)
-    /// authority(32) + target_program(32) + session_signer(32) + valid_until(8)
-    pub const LEN: usize = 32 + 32 + 32 + 8;
+    /// Account size in bytes
+    /// discriminator(1) + authority(32) + target_program(32) + session_signer(32) + valid_until(8)
+    pub const LEN: usize = 1 + 32 + 32 + 32 + 8;
 
     /// Seed prefix as string (for compatibility with Anchor-style seeds)
     pub const SEED_PREFIX: &'static str = "session_token";
@@ -340,12 +342,13 @@ mod tests {
 
     #[test]
     fn test_session_token_len() {
-        assert_eq!(SessionToken::LEN, 104);
+        assert_eq!(SessionToken::LEN, 105);
     }
 
     #[test]
     fn test_is_expired() {
         let session = SessionToken {
+            discriminator: 0,
             authority: Pubkey::new_unique(),
             target_program: Pubkey::new_unique(),
             session_signer: Pubkey::new_unique(),

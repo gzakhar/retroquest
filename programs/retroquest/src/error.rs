@@ -110,6 +110,9 @@ pub enum RetroError {
 
     #[error("Only the identity owner can update their username")]
     UnauthorizedIdentityUpdate,
+
+    #[error("Account discriminator does not match expected type")]
+    InvalidAccountDiscriminator,
 }
 
 impl From<RetroError> for ProgramError {

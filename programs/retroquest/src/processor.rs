@@ -133,6 +133,7 @@ fn process_init_facilitator_registry(
     )?;
 
     let registry = FacilitatorRegistry {
+        discriminator: DISCRIMINATOR_FACILITATOR_REGISTRY,
         is_initialized: true,
         facilitator: *facilitator_info.key,
         board_count: 0,
@@ -225,6 +226,9 @@ fn process_create_board(
 
     // Deserialize and validate facilitator registry
     let mut registry = FacilitatorRegistry::deserialize(&mut &registry_info.data.borrow()[..])?;
+    if registry.discriminator != DISCRIMINATOR_FACILITATOR_REGISTRY {
+        return Err(RetroError::InvalidAccountDiscriminator.into());
+    }
     if !registry.is_initialized {
         return Err(RetroError::AccountNotInitialized.into());
     }
@@ -273,6 +277,7 @@ fn process_create_board(
 
     let clock = Clock::get()?;
     let board = RetroBoard {
+        discriminator: DISCRIMINATOR_RETRO_BOARD,
         is_initialized: true,
         facilitator,
         board_index,
@@ -324,6 +329,7 @@ fn process_create_board(
         )?;
 
         let membership = BoardMembership {
+            discriminator: DISCRIMINATOR_BOARD_MEMBERSHIP,
             is_initialized: true,
             board: *board_info.key,
             participant: *participant_pubkey,
@@ -376,6 +382,9 @@ fn process_advance_stage(
     }
 
     let mut board = RetroBoard::deserialize(&mut &board_info.data.borrow()[..])?;
+    if board.discriminator != DISCRIMINATOR_RETRO_BOARD {
+        return Err(RetroError::InvalidAccountDiscriminator.into());
+    }
     if !board.is_initialized {
         return Err(RetroError::AccountNotInitialized.into());
     }
@@ -432,6 +441,9 @@ fn process_close_board(
     }
 
     let mut board = RetroBoard::deserialize(&mut &board_info.data.borrow()[..])?;
+    if board.discriminator != DISCRIMINATOR_RETRO_BOARD {
+        return Err(RetroError::InvalidAccountDiscriminator.into());
+    }
     if !board.is_initialized {
         return Err(RetroError::AccountNotInitialized.into());
     }
@@ -491,6 +503,9 @@ fn process_create_note(
     }
 
     let mut board = RetroBoard::deserialize(&mut &board_info.data.borrow()[..])?;
+    if board.discriminator != DISCRIMINATOR_RETRO_BOARD {
+        return Err(RetroError::InvalidAccountDiscriminator.into());
+    }
     if !board.is_initialized {
         return Err(RetroError::AccountNotInitialized.into());
     }
@@ -544,6 +559,7 @@ fn process_create_note(
 
     let clock = Clock::get()?;
     let note = Note {
+        discriminator: DISCRIMINATOR_NOTE,
         is_initialized: true,
         board: *board_info.key,
         note_id,
@@ -600,6 +616,9 @@ fn process_create_group(
     }
 
     let mut board = RetroBoard::deserialize(&mut &board_info.data.borrow()[..])?;
+    if board.discriminator != DISCRIMINATOR_RETRO_BOARD {
+        return Err(RetroError::InvalidAccountDiscriminator.into());
+    }
     if !board.is_initialized {
         return Err(RetroError::AccountNotInitialized.into());
     }
@@ -650,6 +669,7 @@ fn process_create_group(
     )?;
 
     let group = Group {
+        discriminator: DISCRIMINATOR_GROUP,
         is_initialized: true,
         board: *board_info.key,
         group_id,
@@ -704,6 +724,9 @@ fn process_set_group_title(
     }
 
     let board = RetroBoard::deserialize(&mut &board_info.data.borrow()[..])?;
+    if board.discriminator != DISCRIMINATOR_RETRO_BOARD {
+        return Err(RetroError::InvalidAccountDiscriminator.into());
+    }
     if !board.is_initialized {
         return Err(RetroError::AccountNotInitialized.into());
     }
@@ -724,6 +747,9 @@ fn process_set_group_title(
     }
 
     let mut group = Group::deserialize(&mut &group_info.data.borrow()[..])?;
+    if group.discriminator != DISCRIMINATOR_GROUP {
+        return Err(RetroError::InvalidAccountDiscriminator.into());
+    }
     if !group.is_initialized {
         return Err(RetroError::AccountNotInitialized.into());
     }
@@ -772,6 +798,9 @@ fn process_assign_note_to_group(
     }
 
     let board = RetroBoard::deserialize(&mut &board_info.data.borrow()[..])?;
+    if board.discriminator != DISCRIMINATOR_RETRO_BOARD {
+        return Err(RetroError::InvalidAccountDiscriminator.into());
+    }
     if !board.is_initialized {
         return Err(RetroError::AccountNotInitialized.into());
     }
@@ -788,11 +817,17 @@ fn process_assign_note_to_group(
     }
 
     let group = Group::deserialize(&mut &group_info.data.borrow()[..])?;
+    if group.discriminator != DISCRIMINATOR_GROUP {
+        return Err(RetroError::InvalidAccountDiscriminator.into());
+    }
     if !group.is_initialized {
         return Err(RetroError::AccountNotInitialized.into());
     }
 
     let mut note = Note::deserialize(&mut &note_info.data.borrow()[..])?;
+    if note.discriminator != DISCRIMINATOR_NOTE {
+        return Err(RetroError::InvalidAccountDiscriminator.into());
+    }
     if !note.is_initialized {
         return Err(RetroError::AccountNotInitialized.into());
     }
@@ -842,6 +877,9 @@ fn process_unassign_note(
     }
 
     let board = RetroBoard::deserialize(&mut &board_info.data.borrow()[..])?;
+    if board.discriminator != DISCRIMINATOR_RETRO_BOARD {
+        return Err(RetroError::InvalidAccountDiscriminator.into());
+    }
     if !board.is_initialized {
         return Err(RetroError::AccountNotInitialized.into());
     }
@@ -858,6 +896,9 @@ fn process_unassign_note(
     }
 
     let mut note = Note::deserialize(&mut &note_info.data.borrow()[..])?;
+    if note.discriminator != DISCRIMINATOR_NOTE {
+        return Err(RetroError::InvalidAccountDiscriminator.into());
+    }
     if !note.is_initialized {
         return Err(RetroError::AccountNotInitialized.into());
     }
@@ -911,6 +952,9 @@ fn process_cast_vote(
     }
 
     let board = RetroBoard::deserialize(&mut &board_info.data.borrow()[..])?;
+    if board.discriminator != DISCRIMINATOR_RETRO_BOARD {
+        return Err(RetroError::InvalidAccountDiscriminator.into());
+    }
     if !board.is_initialized {
         return Err(RetroError::AccountNotInitialized.into());
     }
@@ -963,6 +1007,7 @@ fn process_cast_vote(
         )?;
 
         BoardMembership {
+            discriminator: DISCRIMINATOR_BOARD_MEMBERSHIP,
             is_initialized: true,
             board: *board_info.key,
             participant: voter,
@@ -971,7 +1016,11 @@ fn process_cast_vote(
             bump: membership_bump,
         }
     } else {
-        BoardMembership::deserialize(&mut &membership_info.data.borrow()[..])?
+        let m = BoardMembership::deserialize(&mut &membership_info.data.borrow()[..])?;
+        if m.discriminator != DISCRIMINATOR_BOARD_MEMBERSHIP {
+            return Err(RetroError::InvalidAccountDiscriminator.into());
+        }
+        m
     };
 
     let total_credits_after = membership.credits_spent
@@ -983,6 +1032,9 @@ fn process_cast_vote(
     }
 
     let mut group = Group::deserialize(&mut &group_info.data.borrow()[..])?;
+    if group.discriminator != DISCRIMINATOR_GROUP {
+        return Err(RetroError::InvalidAccountDiscriminator.into());
+    }
     if !group.is_initialized {
         return Err(RetroError::AccountNotInitialized.into());
     }
@@ -1020,6 +1072,7 @@ fn process_cast_vote(
         )?;
 
         VoteRecord {
+            discriminator: DISCRIMINATOR_VOTE_RECORD,
             is_initialized: true,
             board: *board_info.key,
             participant: voter,
@@ -1028,7 +1081,11 @@ fn process_cast_vote(
             bump: vote_bump,
         }
     } else {
-        VoteRecord::deserialize(&mut &vote_record_info.data.borrow()[..])?
+        let v = VoteRecord::deserialize(&mut &vote_record_info.data.borrow()[..])?;
+        if v.discriminator != DISCRIMINATOR_VOTE_RECORD {
+            return Err(RetroError::InvalidAccountDiscriminator.into());
+        }
+        v
     };
 
     vote_record.credits_spent = vote_record.credits_spent
@@ -1087,6 +1144,9 @@ fn process_create_action_item(
     }
 
     let mut board = RetroBoard::deserialize(&mut &board_info.data.borrow()[..])?;
+    if board.discriminator != DISCRIMINATOR_RETRO_BOARD {
+        return Err(RetroError::InvalidAccountDiscriminator.into());
+    }
     if !board.is_initialized {
         return Err(RetroError::AccountNotInitialized.into());
     }
@@ -1165,6 +1225,7 @@ fn process_create_action_item(
 
     let clock = Clock::get()?;
     let action_item = ActionItem {
+        discriminator: DISCRIMINATOR_ACTION_ITEM,
         is_initialized: true,
         board: *board_info.key,
         action_item_id,
@@ -1227,6 +1288,9 @@ fn process_cast_verification_vote(
     }
 
     let board = RetroBoard::deserialize(&mut &board_info.data.borrow()[..])?;
+    if board.discriminator != DISCRIMINATOR_RETRO_BOARD {
+        return Err(RetroError::InvalidAccountDiscriminator.into());
+    }
     if !board.is_initialized {
         return Err(RetroError::AccountNotInitialized.into());
     }
@@ -1240,6 +1304,9 @@ fn process_cast_verification_vote(
     }
 
     let mut action_item = ActionItem::deserialize(&mut &action_item_info.data.borrow()[..])?;
+    if action_item.discriminator != DISCRIMINATOR_ACTION_ITEM {
+        return Err(RetroError::InvalidAccountDiscriminator.into());
+    }
     if !action_item.is_initialized {
         return Err(RetroError::AccountNotInitialized.into());
     }
@@ -1300,6 +1367,7 @@ fn process_cast_verification_vote(
 
     let clock = Clock::get()?;
     let vote = VerificationVote {
+        discriminator: DISCRIMINATOR_VERIFICATION_VOTE,
         is_initialized: true,
         action_item: *action_item_info.key,
         verifier,
@@ -1321,6 +1389,9 @@ fn process_cast_verification_vote(
 
             // Increment owner's score
             let mut owner_membership = BoardMembership::deserialize(&mut &owner_membership_info.data.borrow()[..])?;
+            if owner_membership.discriminator != DISCRIMINATOR_BOARD_MEMBERSHIP {
+                return Err(RetroError::InvalidAccountDiscriminator.into());
+            }
             owner_membership.total_score += 1;
             owner_membership.serialize(&mut *owner_membership_info.data.borrow_mut())?;
         }
@@ -1408,6 +1479,7 @@ fn process_create_session(
 
     // Initialize session token data
     let session_token = SessionToken {
+        discriminator: DISCRIMINATOR_SESSION_TOKEN,
         authority: *authority_info.key,
         target_program: *program_id,
         session_signer: *session_signer_info.key,
@@ -1553,6 +1625,7 @@ fn process_create_identity(
 
     // Initialize identity
     let identity = ParticipantIdentity {
+        discriminator: DISCRIMINATOR_PARTICIPANT_IDENTITY,
         is_initialized: true,
         authority: *authority_info.key,
         username,
@@ -1592,6 +1665,9 @@ fn process_update_identity(
 
     // Deserialize and validate
     let mut identity = ParticipantIdentity::deserialize(&mut &identity_info.data.borrow()[..])?;
+    if identity.discriminator != DISCRIMINATOR_PARTICIPANT_IDENTITY {
+        return Err(RetroError::InvalidAccountDiscriminator.into());
+    }
     if !identity.is_initialized {
         return Err(RetroError::AccountNotInitialized.into());
     }

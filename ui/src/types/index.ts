@@ -174,7 +174,27 @@ export const DEFAULT_SESSION_VALIDITY_SECONDS = 3600; // 1 hour
 export const MAX_SESSION_VALIDITY_SECONDS = 7 * 24 * 60 * 60; // 7 days
 export const DEFAULT_TOP_UP_LAMPORTS = 50_000_000n; // 0.05 SOL
 
+// Account type discriminators (must match Rust program's state.rs)
+// These are at offset 0 of each account to identify account type
+export const DISCRIMINATOR_FACILITATOR_REGISTRY = 1;
+export const DISCRIMINATOR_RETRO_BOARD = 2;
+export const DISCRIMINATOR_BOARD_MEMBERSHIP = 3;
+export const DISCRIMINATOR_NOTE = 4;
+export const DISCRIMINATOR_GROUP = 5;
+export const DISCRIMINATOR_VOTE_RECORD = 6;
+export const DISCRIMINATOR_ACTION_ITEM = 7;
+export const DISCRIMINATOR_VERIFICATION_VOTE = 8;
+export const DISCRIMINATOR_PARTICIPANT_IDENTITY = 9;
+export const DISCRIMINATOR_SESSION_TOKEN = 10;
+
+// Account sizes (updated with discriminator byte at offset 0)
+export const FACILITATOR_REGISTRY_SIZE = 43; // was 42
+export const BOARD_MEMBERSHIP_SIZE = 76; // was 75
+export const VOTE_RECORD_SIZE = 76; // was 75
+export const VERIFICATION_VOTE_SIZE = 76; // was 75
+export const SESSION_TOKEN_SIZE = 105; // was 104
+
 // Program ID (deployed on devnet)
 export const PROGRAM_ID = new PublicKey(
-  "CZ1xaAyDaXa5GyWPHCytfcJjnmJhuFnVeHJLrYiijVLx"
+  "3xNYVWsZD2vUX6EcrzA4ErM53ydtoGHR4WR7Aua2W7cY"
 );

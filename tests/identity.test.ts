@@ -25,6 +25,7 @@ function readString(buffer: Buffer, offset: number): [string, number] {
 }
 
 // Helper to deserialize ParticipantIdentity
+// Note: discriminator (1 byte) is at offset 0, followed by other fields
 function deserializeParticipantIdentity(data: Buffer): {
   isInitialized: boolean;
   authority: PublicKey;
@@ -32,6 +33,9 @@ function deserializeParticipantIdentity(data: Buffer): {
   bump: number;
 } {
   let offset = 0;
+
+  // Skip discriminator byte
+  offset += 1;
 
   const isInitialized = data.readUInt8(offset) === 1;
   offset += 1;
