@@ -7,6 +7,7 @@ import { Header } from "./components/Header";
 import { BoardList } from "./components/BoardList";
 import { CreateBoard } from "./components/CreateBoard";
 import { BoardView } from "./components/BoardView";
+import { PdaExplorerPage } from "./components/PdaExplorerPage";
 
 function App() {
   return (
@@ -21,6 +22,7 @@ function App() {
                   <Route path="/" element={<BoardList />} />
                   <Route path="/create" element={<CreateBoard />} />
                   <Route path="/board/:id" element={<BoardView />} />
+                  <Route path="/pda-explorer" element={<PdaExplorerPage />} />
                 </Routes>
               </main>
             </div>

@@ -176,5 +176,5 @@ export const DEFAULT_TOP_UP_LAMPORTS = 50_000_000n; // 0.05 SOL
 
 // Program ID (deployed on devnet)
 export const PROGRAM_ID = new PublicKey(
-  "52vL4fE1dqriKmGj7MddAvSkg2a7QvWcsFt7159EmbbC"
+  "CZ1xaAyDaXa5GyWPHCytfcJjnmJhuFnVeHJLrYiijVLx"
 );

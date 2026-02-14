@@ -4,8 +4,8 @@
   "version": "0.1.0",
   "description": "Solana-native retrospective application",
   "scripts": {
-    "test": "vitest run",
-    "test:watch": "vitest",
+    "test": "BPF_OUT_DIR=target/deploy vitest run",
+    "test:watch": "BPF_OUT_DIR=target/deploy vitest",
     "lint:fix": "prettier */*.js \"*/**/*{.js,.ts}\" -w",
     "lint": "prettier */*.js \"*/**/*{.js,.ts}\" --check"
   },

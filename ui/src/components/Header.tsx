@@ -43,22 +43,30 @@ export const Header: React.FC = () => {
                 </span>
               </Link>
 
-              {connected && (
-                <nav className="flex space-x-4">
-                  <Link
-                    to="/"
-                    className="text-gray-300 hover:text-white px-3 py-2 rounded-md text-sm font-medium"
-                  >
-                    Boards
-                  </Link>
-                  <Link
-                    to="/create"
-                    className="text-gray-300 hover:text-white px-3 py-2 rounded-md text-sm font-medium"
-                  >
-                    Create Board
-                  </Link>
-                </nav>
-              )}
+              <nav className="flex space-x-4">
+                {connected && (
+                  <>
+                    <Link
+                      to="/"
+                      className="text-gray-300 hover:text-white px-3 py-2 rounded-md text-sm font-medium"
+                    >
+                      Boards
+                    </Link>
+                    <Link
+                      to="/create"
+                      className="text-gray-300 hover:text-white px-3 py-2 rounded-md text-sm font-medium"
+                    >
+                      Create Board
+                    </Link>
+                  </>
+                )}
+                <Link
+                  to="/pda-explorer"
+                  className="text-gray-300 hover:text-white px-3 py-2 rounded-md text-sm font-medium"
+                >
+                  PDA Explorer
+                </Link>
+              </nav>
             </div>
 
             {/* Session Status, Identity & Wallet Button */}

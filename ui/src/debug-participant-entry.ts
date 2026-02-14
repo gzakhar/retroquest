@@ -4,7 +4,7 @@
 import { Connection, PublicKey } from "@solana/web3.js";
 
 const PROGRAM_ID = new PublicKey(
-  "52vL4fE1dqriKmGj7MddAvSkg2a7QvWcsFt7159EmbbC"
+  "CZ1xaAyDaXa5GyWPHCytfcJjnmJhuFnVeHJLrYiijVLx"
 );
 const PARTICIPANT_SEED = Buffer.from("participant");
 
